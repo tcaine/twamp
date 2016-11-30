@@ -1,33 +1,41 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/tcaine/twamp/client"
 	"log"
-	"os"
 )
 
 func main() {
+	countPtr := flag.Int("count", 10, "number of TWAMP tests")
+	waitPtr := flag.Int("wait", 30, "test timeout in seconds")
+	sizePtr := flag.Int("size", 42, "size of TWAMP test packet")
+	portPtr := flag.Int("port", 6666, "remote UDP port for TWAMP test")
+	tosPtr := flag.Int("tos", client.BE, "IP TOS of test packet")
 
-	if len(os.Args) != 2 {
+	flag.Parse()
+
+	args := flag.Args()
+
+	if len(args) < 1 {
 		log.Fatal("No remote IP address was specified.")
 	}
 
-	remoteIP := os.Args[1]
+	remoteIP := args[0]
+	remoteServer := fmt.Sprintf("%s:%d", remoteIP, 862)
 
 	c := client.New()
-
-	connection, err := c.Connect(fmt.Sprintf("%s:%d", remoteIP, 862))
-	//	connection, err := c.Connect("74.40.22.3:862")
+	connection, err := c.Connect(remoteServer)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	config := client.TwampSessionConfig{
-		Port:    6666,
-		Timeout: 30,
-		Padding: 42,
-		DSCP:    0,
+		Port:    *portPtr,
+		Timeout: *waitPtr,
+		Padding: *sizePtr,
+		TOS:     *tosPtr,
 	}
 
 	session, err := connection.CreateSession(config)
@@ -40,34 +48,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	/*
-		results, err := test.Run()
-		if err != nil {
-			log.Fatal(err)
-		}
-		results.PrintResults()
-
-		results, err = test.Run()
-		if err != nil {
-			log.Fatal(err)
-		}
-		results.PrintResults()
-
-		results, err = test.Run()
-		if err != nil {
-			log.Fatal(err)
-		}
-		results.PrintResults()
-	*/
-
-	_ = test.Ping(10)
-
-	//	log.Printf("Results: %+v\n", results)
-
-	//	log.Printf("Sender Timestamp: %s\n", &results.SenderTimestamp)
-	//	log.Printf("Receive Timestamp: %s\n", &results.ReceiveTimestamp)
-	//	log.Printf("Timestamp: %s\n", &results.Timestamp)
-	//	log.Printf("Finished Timestamp: %s\n", &results.FinishedTimestamp)
+	results := test.RunX(*countPtr)
+	//test.FormatJSON(results)
+	test.FormatPing(results)
 
 	session.Stop()
 	connection.Close()
