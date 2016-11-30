@@ -93,10 +93,13 @@ type TwampServerStart struct {
 }
 
 type TwampSessionConfig struct {
-	Port    uint16
-	Padding uint32
-	Timeout uint32
-	DSCP    uint32
+	//	Port    uint16
+	//	Padding uint32
+	//	Timeout uint32
+	Port    int
+	Padding int
+	Timeout int
+	TOS     int
 }
 
 func (c *TwampConnection) getTwampServerStartMessage() (*TwampServerStart, error) {
@@ -135,13 +138,13 @@ func (b RequestTwSession) Encode(c TwampSessionConfig) {
 	start_time := NewTwampTimestamp(time.Now())
 	b[command] = byte(5)
 	binary.BigEndian.PutUint16(b[senderPort:], 6666)
-	binary.BigEndian.PutUint16(b[receiverPort:], c.Port)
-	binary.BigEndian.PutUint32(b[paddingLength:], c.Padding)
+	binary.BigEndian.PutUint16(b[receiverPort:], uint16(c.Port))
+	binary.BigEndian.PutUint32(b[paddingLength:], uint32(c.Padding))
 	binary.BigEndian.PutUint32(b[startTime:], start_time.Integer)
 	binary.BigEndian.PutUint32(b[startTime+4:], start_time.Fraction)
-	binary.BigEndian.PutUint32(b[timeout:], c.Timeout)
+	binary.BigEndian.PutUint32(b[timeout:], uint32(c.Timeout))
 	binary.BigEndian.PutUint32(b[timeout+4:], 0)
-	binary.BigEndian.PutUint32(b[typePDescriptor:], c.DSCP)
+	binary.BigEndian.PutUint32(b[typePDescriptor:], uint32(c.TOS))
 }
 
 func (c *TwampConnection) CreateSession(config TwampSessionConfig) (*TwampSession, error) {
