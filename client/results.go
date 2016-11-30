@@ -32,12 +32,8 @@ func (r *TwampResults) GetRTT() time.Duration {
 	return r.FinishedTimestamp.Sub(r.SenderTimestamp)
 }
 
-func (r *TwampResults) GetAbsoluteRTT() time.Duration {
-	return r.GetRTT() - r.GetWait()
-}
-
 func (r *TwampResults) PrintResults() {
-	log.Printf("TWAMP test took %s.\n", r.GetAbsoluteRTT())
+	log.Printf("TWAMP test took %s.\n", r.GetRTT())
 	log.Printf("Sender Sequence Number: %d", r.SenderSeqNum)
 	log.Printf("Receiver Sequence Number: %d", r.SeqNum)
 }
@@ -60,7 +56,7 @@ type PingResults struct {
 func (r *PingResults) stdDev(mean time.Duration) time.Duration {
 	total := float64(0)
 	for _, result := range r.Results {
-		total += math.Pow(float64(result.GetAbsoluteRTT()-mean), 2)
+		total += math.Pow(float64(result.GetRTT()-mean), 2)
 	}
 	variance := total / float64(len(r.Results)-1)
 	return time.Duration(math.Sqrt(variance))
@@ -90,13 +86,16 @@ func (t *TwampTest) FormatPing(r *PingResults) {
 			t.GetRemoteTestHost(),
 			result.SenderSeqNum,
 			result.SenderTTL,
-			(float64(result.GetAbsoluteRTT()) / float64(time.Millisecond)),
+			(float64(result.GetRTT()) / float64(time.Millisecond)),
 		)
 	}
 
-	stat := r.Stat
 	fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
-	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n", stat.Transmitted, stat.Received, stat.Loss)
+	stat := r.Stat
+	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
+		stat.Transmitted,
+		stat.Received,
+		stat.Loss)
 	fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
 		(float64(stat.Min) / float64(time.Millisecond)),
 		(float64(stat.Avg) / float64(time.Millisecond)),
@@ -105,7 +104,7 @@ func (t *TwampTest) FormatPing(r *PingResults) {
 	)
 }
 
-func (t *TwampTest) Ping(count int) *PingResults {
+func (t *TwampTest) Ping(count int, isRapid bool) *PingResults {
 	Stats := &PingResultStats{}
 	Results := &PingResults{Stat: Stats}
 	var TotalRTT time.Duration = 0
@@ -118,30 +117,45 @@ func (t *TwampTest) Ping(count int) *PingResults {
 		Stats.Transmitted++
 		results, err := t.Run()
 		if err != nil {
+			if isRapid {
+				fmt.Printf(".")
+			}
 		} else {
 			if i == 0 {
-				Stats.Min = results.GetAbsoluteRTT()
-				Stats.Max = results.GetAbsoluteRTT()
+				Stats.Min = results.GetRTT()
+				Stats.Max = results.GetRTT()
 			}
-			if Stats.Min > results.GetAbsoluteRTT() {
-				Stats.Min = results.GetAbsoluteRTT()
+			if Stats.Min > results.GetRTT() {
+				Stats.Min = results.GetRTT()
 			}
-			if Stats.Max < results.GetAbsoluteRTT() {
-				Stats.Max = results.GetAbsoluteRTT()
+			if Stats.Max < results.GetRTT() {
+				Stats.Max = results.GetRTT()
 			}
 
-			TotalRTT += results.GetAbsoluteRTT()
+			TotalRTT += results.GetRTT()
 			Stats.Received++
 			Results.Results = append(Results.Results, results)
 
-			fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms\n",
-				packetSize,
-				t.GetRemoteTestHost(),
-				results.SenderSeqNum,
-				results.SenderTTL,
-				(float64(results.GetAbsoluteRTT()) / float64(time.Millisecond)),
-			)
+			if isRapid {
+				fmt.Printf("!")
+			} else {
+				fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms\n",
+					packetSize,
+					t.GetRemoteTestHost(),
+					results.SenderSeqNum,
+					results.SenderTTL,
+					(float64(results.GetRTT()) / float64(time.Millisecond)),
+				)
+			}
 		}
+
+		if !isRapid {
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	if isRapid {
+		fmt.Printf("\n")
 	}
 
 	Stats.Avg = time.Duration(int64(TotalRTT) / int64(count))
@@ -149,7 +163,10 @@ func (t *TwampTest) Ping(count int) *PingResults {
 	Stats.StdDev = Results.stdDev(Stats.Avg)
 
 	fmt.Printf("--- %s twamp ping statistics ---\n", "74.40.22.3")
-	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n", Stats.Transmitted, Stats.Received, Stats.Loss)
+	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
+		Stats.Transmitted,
+		Stats.Received,
+		Stats.Loss)
 	fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
 		(float64(Stats.Min) / float64(time.Millisecond)),
 		(float64(Stats.Avg) / float64(time.Millisecond)),
@@ -171,17 +188,17 @@ func (t *TwampTest) RunX(count int) *PingResults {
 		if err != nil {
 		} else {
 			if i == 0 {
-				Stats.Min = results.GetAbsoluteRTT()
-				Stats.Max = results.GetAbsoluteRTT()
+				Stats.Min = results.GetRTT()
+				Stats.Max = results.GetRTT()
 			}
-			if Stats.Min > results.GetAbsoluteRTT() {
-				Stats.Min = results.GetAbsoluteRTT()
+			if Stats.Min > results.GetRTT() {
+				Stats.Min = results.GetRTT()
 			}
-			if Stats.Max < results.GetAbsoluteRTT() {
-				Stats.Max = results.GetAbsoluteRTT()
+			if Stats.Max < results.GetRTT() {
+				Stats.Max = results.GetRTT()
 			}
 
-			TotalRTT += results.GetAbsoluteRTT()
+			TotalRTT += results.GetRTT()
 			Stats.Received++
 			Results.Results = append(Results.Results, results)
 		}
