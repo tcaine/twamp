@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -8,16 +9,16 @@ import (
 )
 
 type TwampResults struct {
-	SeqNum              uint32
-	Timestamp           TwampTimestamp
-	ErrorEstimate       uint16
-	ReceiveTimestamp    TwampTimestamp
-	SenderSeqNum        uint32
-	SenderTimestamp     TwampTimestamp
-	SenderErrorEstimate uint16
-	SenderTTL           byte
-	FinishedTimestamp   TwampTimestamp
-	Size                uint32
+	SeqNum              uint32         `json:"seqnum"`
+	Timestamp           TwampTimestamp `json:"timestamp"`
+	ErrorEstimate       uint16         `json:"errorEstimate"`
+	ReceiveTimestamp    TwampTimestamp `json:"receiveTimestamp"`
+	SenderSeqNum        uint32         `json:"senderSeqnum"`
+	SenderTimestamp     TwampTimestamp `json:"senderTimestamp"`
+	SenderErrorEstimate uint16         `json:"senderErrorEstimate"`
+	SenderTTL           byte           `json:"senderTTL"`
+	FinishedTimestamp   TwampTimestamp `json:"finishedTimestamp"`
+	SenderSize          int            `json:"senderSize"`
 }
 
 func (r *TwampResults) GetWait() time.Duration {
@@ -39,37 +40,76 @@ func (r *TwampResults) PrintResults() {
 }
 
 type PingResultStats struct {
-	Min         time.Duration
-	Max         time.Duration
-	Avg         time.Duration
-	StdDev      time.Duration
-	Transmitted int
-	Received    int
-	Loss        float64
+	Min         time.Duration `json:"min"`
+	Max         time.Duration `json:"max"`
+	Avg         time.Duration `json:"avg"`
+	StdDev      time.Duration `json:"stddev"`
+	Transmitted int           `json:"tx"`
+	Received    int           `json:"rx"`
+	Loss        float64       `json:"loss"`
 }
 
 type PingResults struct {
-	results []*TwampResults
-	stat    *PingResultStats
+	Results []*TwampResults  `json:"results"`
+	Stat    *PingResultStats `json:"stats"`
 }
 
 func (r *PingResults) stdDev(mean time.Duration) time.Duration {
 	total := float64(0)
-	for _, result := range r.results {
+	for _, result := range r.Results {
 		total += math.Pow(float64(result.GetAbsoluteRTT()-mean), 2)
 	}
-	variance := total / float64(len(r.results)-1)
+	variance := total / float64(len(r.Results)-1)
 	return time.Duration(math.Sqrt(variance))
+}
+
+func (t *TwampTest) FormatJSON(r *PingResults) {
+	doc, err := json.Marshal(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%s\n", string(doc))
+}
+
+func (t *TwampTest) FormatPing(r *PingResults) {
+	if len(r.Results) < 1 {
+		return
+	}
+
+	packetSize := 14 + t.GetSession().GetConfig().Padding
+
+	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
+
+	for i := 0; i < len(r.Results); i++ {
+		result := r.Results[i]
+		fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms\n",
+			result.SenderSize,
+			t.GetRemoteTestHost(),
+			result.SenderSeqNum,
+			result.SenderTTL,
+			(float64(result.GetAbsoluteRTT()) / float64(time.Millisecond)),
+		)
+	}
+
+	stat := r.Stat
+	fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
+	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n", stat.Transmitted, stat.Received, stat.Loss)
+	fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
+		(float64(stat.Min) / float64(time.Millisecond)),
+		(float64(stat.Avg) / float64(time.Millisecond)),
+		(float64(stat.Max) / float64(time.Millisecond)),
+		(float64(stat.StdDev) / float64(time.Millisecond)),
+	)
 }
 
 func (t *TwampTest) Ping(count int) *PingResults {
 	Stats := &PingResultStats{}
-	Results := &PingResults{stat: Stats}
+	Results := &PingResults{Stat: Stats}
 	var TotalRTT time.Duration = 0
 
-	PacketSize := 14 + t.GetSession().config.Padding
+	packetSize := 14 + t.GetSession().GetConfig().Padding
 
-	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), PacketSize)
+	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
 
 	for i := 0; i < count; i++ {
 		Stats.Transmitted++
@@ -89,10 +129,10 @@ func (t *TwampTest) Ping(count int) *PingResults {
 
 			TotalRTT += results.GetAbsoluteRTT()
 			Stats.Received++
-			Results.results = append(Results.results, results)
+			Results.Results = append(Results.Results, results)
 
 			fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms\n",
-				PacketSize,
+				packetSize,
 				t.GetRemoteTestHost(),
 				results.SenderSeqNum,
 				results.SenderTTL,
@@ -117,20 +157,38 @@ func (t *TwampTest) Ping(count int) *PingResults {
 	return Results
 }
 
-/*
-PING www.google.com (216.58.193.68): 56 data bytes
-64 bytes from 216.58.193.68: icmp_seq=0 ttl=54 time=362.691 ms
-64 bytes from 216.58.193.68: icmp_seq=1 ttl=54 time=394.204 ms
-64 bytes from 216.58.193.68: icmp_seq=2 ttl=54 time=347.931 ms
-64 bytes from 216.58.193.68: icmp_seq=3 ttl=54 time=407.690 ms
-64 bytes from 216.58.193.68: icmp_seq=4 ttl=54 time=232.563 ms
-64 bytes from 216.58.193.68: icmp_seq=5 ttl=54 time=354.313 ms
-64 bytes from 216.58.193.68: icmp_seq=6 ttl=54 time=381.693 ms
-64 bytes from 216.58.193.68: icmp_seq=7 ttl=54 time=284.524 ms
-^C
---- www.google.com ping statistics ---
-8 packets transmitted, 8 packets received, 0.0% packet loss
-round-trip min/avg/max/stddev = 232.563/345.701/407.690/55.228 ms
-*/
+func (t *TwampTest) RunX(count int) *PingResults {
+	Stats := &PingResultStats{}
+	Results := &PingResults{Stat: Stats}
+	var TotalRTT time.Duration = 0
+
+	for i := 0; i < count; i++ {
+		Stats.Transmitted++
+		results, err := t.Run()
+		if err != nil {
+		} else {
+			if i == 0 {
+				Stats.Min = results.GetAbsoluteRTT()
+				Stats.Max = results.GetAbsoluteRTT()
+			}
+			if Stats.Min > results.GetAbsoluteRTT() {
+				Stats.Min = results.GetAbsoluteRTT()
+			}
+			if Stats.Max < results.GetAbsoluteRTT() {
+				Stats.Max = results.GetAbsoluteRTT()
+			}
+
+			TotalRTT += results.GetAbsoluteRTT()
+			Stats.Received++
+			Results.Results = append(Results.Results, results)
+		}
+	}
+
+	Stats.Avg = time.Duration(int64(TotalRTT) / int64(count))
+	Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
+	Stats.StdDev = Results.stdDev(Stats.Avg)
+
+	return Results
+}
 
 /* end */
