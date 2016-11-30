@@ -8,25 +8,28 @@ import (
 	"time"
 )
 
+/*
+	TWAMP test result timestamps have been normalized to UNIX epoch time.
+*/
 type TwampResults struct {
-	SeqNum              uint32         `json:"seqnum"`
-	Timestamp           TwampTimestamp `json:"timestamp"`
-	ErrorEstimate       uint16         `json:"errorEstimate"`
-	ReceiveTimestamp    TwampTimestamp `json:"receiveTimestamp"`
-	SenderSeqNum        uint32         `json:"senderSeqnum"`
-	SenderTimestamp     TwampTimestamp `json:"senderTimestamp"`
-	SenderErrorEstimate uint16         `json:"senderErrorEstimate"`
-	SenderTTL           byte           `json:"senderTTL"`
-	FinishedTimestamp   TwampTimestamp `json:"finishedTimestamp"`
-	SenderSize          int            `json:"senderSize"`
+	SeqNum              uint32    `json:"seqnum"`
+	Timestamp           time.Time `json:"timestamp"`
+	ErrorEstimate       uint16    `json:"errorEstimate"`
+	ReceiveTimestamp    time.Time `json:"receiveTimestamp"`
+	SenderSeqNum        uint32    `json:"senderSeqnum"`
+	SenderTimestamp     time.Time `json:"senderTimestamp"`
+	SenderErrorEstimate uint16    `json:"senderErrorEstimate"`
+	SenderTTL           byte      `json:"senderTTL"`
+	FinishedTimestamp   time.Time `json:"finishedTimestamp"`
+	SenderSize          int       `json:"senderSize"`
 }
 
 func (r *TwampResults) GetWait() time.Duration {
-	return r.Timestamp.GetTime().Sub(r.ReceiveTimestamp.GetTime())
+	return r.Timestamp.Sub(r.ReceiveTimestamp)
 }
 
 func (r *TwampResults) GetRTT() time.Duration {
-	return r.FinishedTimestamp.GetTime().Sub(r.SenderTimestamp.GetTime())
+	return r.FinishedTimestamp.Sub(r.SenderTimestamp)
 }
 
 func (r *TwampResults) GetAbsoluteRTT() time.Duration {

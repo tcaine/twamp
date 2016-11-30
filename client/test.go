@@ -99,25 +99,36 @@ func (t *TwampTest) Run() (r *TwampResults, err error) {
 		return nil, err
 	}
 
-	finished := NewTwampTimestamp(time.Now())
+	finished := time.Now()
 
 	// process test results
 	r = &TwampResults{}
 	r.SenderSize = size
 	r.SeqNum = binary.BigEndian.Uint32(buffer.Next(4))
-	r.Timestamp.Integer = binary.BigEndian.Uint32(buffer.Next(4))
-	r.Timestamp.Fraction = binary.BigEndian.Uint32(buffer.Next(4))
+
+	//	Integer:  uint32(t.Unix()),
+	//	 Fraction: uint32(t.Nanosecond()),
+
+	r.Timestamp = NewTimestamp(
+		binary.BigEndian.Uint32(buffer.Next(4)),
+		binary.BigEndian.Uint32(buffer.Next(4)),
+	)
+
 	r.ErrorEstimate = binary.BigEndian.Uint16(buffer.Next(2))
 	_ = buffer.Next(2)
-	r.ReceiveTimestamp.Integer = binary.BigEndian.Uint32(buffer.Next(4))
-	r.ReceiveTimestamp.Fraction = binary.BigEndian.Uint32(buffer.Next(4))
+	r.ReceiveTimestamp = NewTimestamp(
+		binary.BigEndian.Uint32(buffer.Next(4)),
+		binary.BigEndian.Uint32(buffer.Next(4)),
+	)
 	r.SenderSeqNum = binary.BigEndian.Uint32(buffer.Next(4))
-	r.SenderTimestamp.Integer = binary.BigEndian.Uint32(buffer.Next(4))
-	r.SenderTimestamp.Fraction = binary.BigEndian.Uint32(buffer.Next(4))
+	r.SenderTimestamp = NewTimestamp(
+		binary.BigEndian.Uint32(buffer.Next(4)),
+		binary.BigEndian.Uint32(buffer.Next(4)),
+	)
 	r.SenderErrorEstimate = binary.BigEndian.Uint16(buffer.Next(2))
 	_ = buffer.Next(2)
 	r.SenderTTL = byte(buffer.Next(1)[0])
-	r.FinishedTimestamp = *finished
+	r.FinishedTimestamp = finished
 
 	return
 }
