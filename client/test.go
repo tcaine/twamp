@@ -3,8 +3,10 @@ package client
 import (
 	"bytes"
 	"encoding/binary"
+	"log"
 	//	"errors"
 	"fmt"
+	"golang.org/x/net/ipv4"
 	"math/rand"
 	"net"
 	"strings"
@@ -18,6 +20,25 @@ type TwampTest struct {
 	session *TwampSession
 	conn    *net.UDPConn
 	seq     uint32
+}
+
+/*
+
+ */
+func (t *TwampTest) SetConnection(conn *net.UDPConn) {
+	c := ipv4.NewConn(conn)
+
+	err := c.SetTTL(255)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = c.SetTOS(t.GetSession().GetConfig().TOS)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	t.conn = conn
 }
 
 /*
@@ -69,7 +90,7 @@ func (t *TwampTest) GetRemoteTestHost() string {
 	Run a TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) Run() (r *TwampResults, err error) {
-	t.sendTestMessage(false)
+	size := t.sendTestMessage(false)
 
 	// receive test packets
 	buffer, err := t.readFromSocket(64)
@@ -82,6 +103,7 @@ func (t *TwampTest) Run() (r *TwampResults, err error) {
 
 	// process test results
 	r = &TwampResults{}
+	r.SenderSize = size
 	r.SeqNum = binary.BigEndian.Uint32(buffer.Next(4))
 	r.Timestamp.Integer = binary.BigEndian.Uint32(buffer.Next(4))
 	r.Timestamp.Fraction = binary.BigEndian.Uint32(buffer.Next(4))
@@ -100,7 +122,7 @@ func (t *TwampTest) Run() (r *TwampResults, err error) {
 	return
 }
 
-func (t *TwampTest) sendTestMessage(use_all_zeroes bool) {
+func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
 	now := NewTwampTimestamp(time.Now())
 	totalSize := 14 + int(t.GetSession().config.Padding)
 	var pdu []byte = make([]byte, totalSize)
@@ -123,6 +145,7 @@ func (t *TwampTest) sendTestMessage(use_all_zeroes bool) {
 
 	t.GetConnection().Write(pdu)
 	t.seq++
+	return totalSize
 }
 
 func (t *TwampTest) readFromSocket(size int) (bytes.Buffer, error) {
@@ -130,7 +153,10 @@ func (t *TwampTest) readFromSocket(size int) (bytes.Buffer, error) {
 	buffer := *bytes.NewBuffer(buf)
 
 	// timeout the UDP socket read
-	t.GetConnection().SetReadDeadline(time.Now().Add(time.Second * 1))
+	timeout := time.Duration(t.GetSession().GetConfig().Timeout)
+	t.GetConnection().SetReadDeadline(
+		time.Now().Add(time.Second * timeout),
+	)
 
 	_, err := t.GetConnection().Read(buf)
 	if err != nil {
