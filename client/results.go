@@ -70,41 +70,7 @@ func (t *TwampTest) FormatJSON(r *PingResults) {
 	fmt.Printf("%s\n", string(doc))
 }
 
-func (t *TwampTest) FormatPing(r *PingResults) {
-	if len(r.Results) < 1 {
-		return
-	}
-
-	packetSize := 14 + t.GetSession().GetConfig().Padding
-
-	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
-
-	for i := 0; i < len(r.Results); i++ {
-		result := r.Results[i]
-		fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms\n",
-			result.SenderSize,
-			t.GetRemoteTestHost(),
-			result.SenderSeqNum,
-			result.SenderTTL,
-			(float64(result.GetRTT()) / float64(time.Millisecond)),
-		)
-	}
-
-	fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
-	stat := r.Stat
-	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
-		stat.Transmitted,
-		stat.Received,
-		stat.Loss)
-	fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
-		(float64(stat.Min) / float64(time.Millisecond)),
-		(float64(stat.Avg) / float64(time.Millisecond)),
-		(float64(stat.Max) / float64(time.Millisecond)),
-		(float64(stat.StdDev) / float64(time.Millisecond)),
-	)
-}
-
-func (t *TwampTest) Ping(count int, isRapid bool) *PingResults {
+func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
 	Stats := &PingResultStats{}
 	Results := &PingResults{Stat: Stats}
 	var TotalRTT time.Duration = 0
@@ -150,7 +116,7 @@ func (t *TwampTest) Ping(count int, isRapid bool) *PingResults {
 		}
 
 		if !isRapid {
-			time.Sleep(1 * time.Second)
+			time.Sleep(time.Duration(interval) * time.Second)
 		}
 	}
 
@@ -162,7 +128,7 @@ func (t *TwampTest) Ping(count int, isRapid bool) *PingResults {
 	Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
 	Stats.StdDev = Results.stdDev(Stats.Avg)
 
-	fmt.Printf("--- %s twamp ping statistics ---\n", "74.40.22.3")
+	fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
 	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
 		Stats.Transmitted,
 		Stats.Received,

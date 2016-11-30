@@ -5,21 +5,39 @@ import (
 	"fmt"
 	"github.com/tcaine/twamp/client"
 	"log"
+	"os"
 )
 
+/*
+
+Future flags ?
+
+Possible completions:
+  <host>               Hostname or IP address of remote host
+
+ttl                  IP time-to-live value (IPv6 hop-limit value) (1..255 hops)
+do-not-fragment      Don't fragment echo request packets (IPv4)
+source               Source address of echo request
+
+*/
+
 func main() {
-	countPtr := flag.Int("count", 10, "number of TWAMP tests")
-	waitPtr := flag.Int("wait", 30, "test timeout in seconds")
-	sizePtr := flag.Int("size", 42, "size of TWAMP test packet")
-	portPtr := flag.Int("port", 6666, "remote UDP port for TWAMP test")
-	tosPtr := flag.Int("tos", client.BE, "IP TOS of test packet")
+	interval := flag.Int("interval", 1, "Delay between TWAMP-test requests (seconds)")
+	count := flag.Int("count", 5, "Number of requests to send (1..2000000000 packets)")
+	rapid := flag.Bool("rapid", false, "Send requests rapidly (default count of 5)")
+	size := flag.Int("size", 42, "Size of request packets (0..65468 bytes)")
+	tos := flag.Int("tos", 0, "IP type-of-service value (0..255)")
+	wait := flag.Int("wait", 1, "Maximum wait time after sending final packet (seconds)")
+	port := flag.Int("port", 6666, "UDP port to send request packets")
+	mode := flag.String("mode", "ping", "Mode of operation (ping, json)")
 
 	flag.Parse()
 
 	args := flag.Args()
 
 	if len(args) < 1 {
-		log.Fatal("No remote IP address was specified.")
+		fmt.Println("No hostname or IP address was specified.")
+		os.Exit(1)
 	}
 
 	remoteIP := args[0]
@@ -31,14 +49,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	config := client.TwampSessionConfig{
-		Port:    *portPtr,
-		Timeout: *waitPtr,
-		Padding: *sizePtr,
-		TOS:     *tosPtr,
-	}
-
-	session, err := connection.CreateSession(config)
+	session, err := connection.CreateSession(
+		client.TwampSessionConfig{
+			Port:    *port,
+			Timeout: *wait,
+			Padding: *size,
+			TOS:     *tos,
+		},
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,9 +66,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	results := test.RunX(*countPtr)
-	//test.FormatJSON(results)
-	test.FormatPing(results)
+	switch *mode {
+	case "json":
+		results := test.RunX(*count)
+		test.FormatJSON(results)
+	case "ping":
+		test.Ping(*count, *rapid, *interval)
+	}
 
 	session.Stop()
 	connection.Close()
