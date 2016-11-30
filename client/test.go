@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"log"
 	//	"errors"
 	"fmt"
@@ -89,7 +90,10 @@ func (t *TwampTest) GetRemoteTestHost() string {
 /*
 	Run a TWAMP test and return a pointer to the TwampResults.
 */
-func (t *TwampTest) Run() (r *TwampResults, err error) {
+func (t *TwampTest) Run() (*TwampResults, error) {
+
+	senderSeqNum := t.seq
+
 	size := t.sendTestMessage(false)
 
 	// receive test packets
@@ -102,12 +106,9 @@ func (t *TwampTest) Run() (r *TwampResults, err error) {
 	finished := time.Now()
 
 	// process test results
-	r = &TwampResults{}
+	r := &TwampResults{}
 	r.SenderSize = size
 	r.SeqNum = binary.BigEndian.Uint32(buffer.Next(4))
-
-	//	Integer:  uint32(t.Unix()),
-	//	 Fraction: uint32(t.Nanosecond()),
 
 	r.Timestamp = NewTimestamp(
 		binary.BigEndian.Uint32(buffer.Next(4)),
@@ -130,7 +131,13 @@ func (t *TwampTest) Run() (r *TwampResults, err error) {
 	r.SenderTTL = byte(buffer.Next(1)[0])
 	r.FinishedTimestamp = finished
 
-	return
+	if senderSeqNum != r.SeqNum {
+		return nil, errors.New(
+			fmt.Sprintf("Expected seq # %d but received %d.\n", senderSeqNum, r.SeqNum),
+		)
+	}
+
+	return r, nil
 }
 
 func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
@@ -144,7 +151,10 @@ func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
 	pdu[12] = 1<<7 | 0<<6 | 0                         // Synchronized, MBZ, Scale
 	pdu[13] = byte(1)                                 // multiplier
 
-	rand.NewSource(int64(time.Now().Unix()))
+	// seed psuedo-random number generator if needed
+	if !use_all_zeroes {
+		rand.NewSource(int64(time.Now().Unix()))
+	}
 
 	for x := 14; x < totalSize; x++ {
 		if use_all_zeroes {
