@@ -8,19 +8,6 @@ import (
 	"os"
 )
 
-/*
-
-Future flags ?
-
-Possible completions:
-  <host>               Hostname or IP address of remote host
-
-ttl                  IP time-to-live value (IPv6 hop-limit value) (1..255 hops)
-do-not-fragment      Don't fragment echo request packets (IPv4)
-source               Source address of echo request
-
-*/
-
 func main() {
 	interval := flag.Int("interval", 1, "Delay between TWAMP-test requests (seconds)")
 	count := flag.Int("count", 5, "Number of requests to send (1..2000000000 packets)")
