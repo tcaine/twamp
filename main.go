@@ -43,7 +43,7 @@ func main() {
 	remoteIP := args[0]
 	remoteServer := fmt.Sprintf("%s:%d", remoteIP, 862)
 
-	c := client.New()
+	c := client.NewClient()
 	connection, err := c.Connect(remoteServer)
 	if err != nil {
 		log.Fatal(err)
