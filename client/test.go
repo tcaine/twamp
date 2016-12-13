@@ -1,13 +1,11 @@
 package client
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
-	"log"
-	//	"errors"
 	"fmt"
 	"golang.org/x/net/ipv4"
+	"log"
 	"math/rand"
 	"net"
 	"strings"
@@ -97,7 +95,7 @@ func (t *TwampTest) Run() (*TwampResults, error) {
 	size := t.sendTestMessage(false)
 
 	// receive test packets
-	buffer, err := t.readFromSocket(64)
+	buffer, err := readFromSocket(t.GetConnection(), 64)
 	if err != nil {
 		//		log.Printf("Read error: %s\n", err)
 		return nil, err
@@ -167,22 +165,4 @@ func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
 	t.GetConnection().Write(pdu)
 	t.seq++
 	return totalSize
-}
-
-func (t *TwampTest) readFromSocket(size int) (bytes.Buffer, error) {
-	buf := make([]byte, size)
-	buffer := *bytes.NewBuffer(buf)
-
-	// timeout the UDP socket read
-	timeout := time.Duration(t.GetSession().GetConfig().Timeout)
-	t.GetConnection().SetReadDeadline(
-		time.Now().Add(time.Second * timeout),
-	)
-
-	_, err := t.GetConnection().Read(buf)
-	if err != nil {
-		return buffer, err
-	}
-
-	return buffer, nil
 }

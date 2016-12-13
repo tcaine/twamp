@@ -59,17 +59,9 @@ func (c *TwampConnection) sendTwampClientSetupResponse() {
 	binary.Write(c.GetConnection(), binary.BigEndian, response)
 }
 
-func (c *TwampConnection) readFromSocket(size int) (bytes.Buffer, error) {
-	buf := make([]byte, size)
-	buffer := *bytes.NewBuffer(buf)
-	//TODO: make sure we read everything!!!  :-\
-	_, error := c.conn.Read(buf)
-	return buffer, error
-}
-
 func (c *TwampConnection) getTwampServerGreetingMessage() (*TwampServerGreeting, error) {
 	// check the greeting message from TWAMP server
-	buffer, err := c.readFromSocket(64)
+	buffer, err := readFromSocket(c.conn, 64)
 	if err != nil {
 		log.Printf("Cannot read: %s\n", err)
 		return nil, err
@@ -104,7 +96,7 @@ type TwampSessionConfig struct {
 
 func (c *TwampConnection) getTwampServerStartMessage() (*TwampServerStart, error) {
 	// check the start message from TWAMP server
-	buffer, err := c.readFromSocket(48)
+	buffer, err := readFromSocket(c.conn, 48)
 	if err != nil {
 		log.Printf("Cannot read: %s\n", err)
 		return nil, err
