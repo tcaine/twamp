@@ -2,6 +2,38 @@
 
 TWAMP client for go
 
+## Client Library Synopsis
+
+```
+c := client.NewClient()
+connection, err := c.Connect("10.1.1.200:862")
+if err != nil {
+	log.Fatal(err)
+}
+
+session, err := connection.CreateSession(
+	client.TwampSessionConfig{
+		Port:    6666,
+		Timeout: 1,
+		Padding: 42,
+		TOS:     client.EF,
+		},
+	)
+if err != nil {
+	log.Fatal(err)
+}
+
+test, err := session.CreateTest()
+if err != nil {
+	log.Fatal(err)
+}
+
+results := test.RunX(count)
+
+session.Stop()
+connection.Close()
+```
+
 ## TWAMP ping command line utility
 
 ### CLI Usage Message
@@ -131,37 +163,5 @@ sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
    ]
 }
 sigsegv:twamp tcaine$ 
-```
-
-## Client Library Synopsis
-
-```
-c := client.NewClient()
-connection, err := c.Connect("10.1.1.200:862")
-if err != nil {
-	log.Fatal(err)
-}
-
-session, err := connection.CreateSession(
-	client.TwampSessionConfig{
-		Port:    6666,
-		Timeout: 1,
-		Padding: 42,
-		TOS:     client.EF,
-		},
-	)
-if err != nil {
-	log.Fatal(err)
-}
-
-test, err := session.CreateTest()
-if err != nil {
-	log.Fatal(err)
-}
-
-results := test.RunX(count)
-
-session.Stop()
-connection.Close()
 ```
 
