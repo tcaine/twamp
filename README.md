@@ -53,27 +53,18 @@ round-trip min/avg/max/stddev = 27.456/81.008/924.369/115.346 ms
 
 ```
 
-remoteServer := "10.1.1.200:862"
-interval := 1
-count := 5
-rapid := false
-size := 42
-tos := 0
-wait := 1
-port := 6666
-
-c := client.New()
-connection, err := c.Connect(remoteServer)
+c := client.NewClient()
+connection, err := c.Connect("10.1.1.200:862")
 if err != nil {
 	log.Fatal(err)
 }
 
 session, err := connection.CreateSession(
 	client.TwampSessionConfig{
-		Port:    port,
-		Timeout: wait,
-		Padding: size,
-		TOS:     tos,
+		Port:    6666,
+		Timeout: 1,
+		Padding: 42,
+		TOS:     0,
 		},
 	)
 if err != nil {
@@ -85,7 +76,7 @@ if err != nil {
 	log.Fatal(err)
 }
 
-test.Ping(count, rapid, interval)
+results := test.RunX(count)
 
 session.Stop()
 connection.Close()
