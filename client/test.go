@@ -27,6 +27,7 @@ type TwampTest struct {
 func (t *TwampTest) SetConnection(conn *net.UDPConn) {
 	c := ipv4.NewConn(conn)
 
+	// RFC recommends IP TTL of 255
 	err := c.SetTTL(255)
 	if err != nil {
 		log.Fatal(err)
@@ -149,7 +150,7 @@ func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
 	pdu[12] = byte(1)                                 // Synchronized, MBZ, Scale
 	pdu[13] = byte(1)                                 // multiplier
 
-	// seed psuedo-random number generator if needed
+	// seed psuedo-random number generator if requested
 	if !use_all_zeroes {
 		rand.NewSource(int64(time.Now().Unix()))
 	}
