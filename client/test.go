@@ -146,7 +146,7 @@ func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
 	binary.BigEndian.PutUint32(pdu[0:], t.seq)        // sequence number
 	binary.BigEndian.PutUint32(pdu[4:], now.Integer)  // timestamp (integer)
 	binary.BigEndian.PutUint32(pdu[8:], now.Fraction) // timestamp (fraction)
-	pdu[12] = 1<<7 | 0<<6 | 0                         // Synchronized, MBZ, Scale
+	pdu[12] = byte(1)                                 // Synchronized, MBZ, Scale
 	pdu[13] = byte(1)                                 // multiplier
 
 	// seed psuedo-random number generator if needed
