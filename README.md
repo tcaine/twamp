@@ -4,11 +4,9 @@ TWAMP client for go
 
 ## TWAMP ping command line utility
 
-```
-# build twamp command line utility
-sigsegv:twamp tcaine$ go build -o twamp main.go 
+### CLI Usage Message
 
-# display usage message
+```
 sigsegv:twamp tcaine$ ./twamp --help
 Usage of ./twamp:
   -count int
@@ -27,8 +25,11 @@ Usage of ./twamp:
     	IP type-of-service value (0..255)
   -wait int
     	Maximum wait time after sending final packet (seconds) (default 1)
+```
 
-# twamp ping
+### Twamp Ping
+
+```
 sigsegv:twamp tcaine$ ./twamp 10.1.1.200
 TWAMP PING 10.1.1.200: 56 data bytes
 56 bytes from 10.1.1.200: twamp_seq=0 ttl=250 time=45.252 ms
@@ -39,8 +40,11 @@ TWAMP PING 10.1.1.200: 56 data bytes
 --- 10.1.1.200 twamp ping statistics ---
 5 packets transmitted, 5 packets received, 0.0% packet loss
 round-trip min/avg/max/stddev = 41.005/150.459/484.722/190.907 ms
+```
 
-# rapid twamp ping
+### Twamp Rapid Ping
+
+```
 sigsegv:twamp tcaine$ ./twamp --count=100 --rapid 10.1.1.200 
 TWAMP PING 10.1.1.200: 56 data bytes
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -49,7 +53,87 @@ TWAMP PING 10.1.1.200: 56 data bytes
 round-trip min/avg/max/stddev = 27.456/81.008/924.369/115.346 ms
 ```
 
-## SYNOPSIS
+### Twamp Ping JSON
+
+```
+sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
+{
+   "stats" : {
+      "tx" : 5,
+      "stddev" : 61171928,
+      "rx" : 5,
+      "avg" : 104719892,
+      "min" : 29052824,
+      "loss" : 0,
+      "max" : 155204310
+   },
+   "results" : [
+      {
+         "senderTimestamp" : "2016-12-12T21:12:13.475143032-08:00",
+         "finishedTimestamp" : "2016-12-12T21:12:13.523426063-08:00",
+         "seqnum" : 0,
+         "receiveTimestamp" : "2016-12-12T21:12:14.982226191-08:00",
+         "senderTTL" : 250,
+         "errorEstimate" : 1,
+         "timestamp" : "2016-12-12T21:12:14.982780242-08:00",
+         "senderSeqnum" : 0,
+         "senderErrorEstimate" : 257,
+         "senderSize" : 56
+      },
+      {
+         "senderTimestamp" : "2016-12-12T21:12:13.523434427-08:00",
+         "finishedTimestamp" : "2016-12-12T21:12:13.678393972-08:00",
+         "seqnum" : 1,
+         "receiveTimestamp" : "2016-12-12T21:12:15.662510356-08:00",
+         "senderTTL" : 250,
+         "errorEstimate" : 1,
+         "timestamp" : "2016-12-12T21:12:15.662776644-08:00",
+         "senderSeqnum" : 1,
+         "senderErrorEstimate" : 257,
+         "senderSize" : 56
+      },
+      {
+         "senderTimestamp" : "2016-12-12T21:12:13.678401499-08:00",
+         "finishedTimestamp" : "2016-12-12T21:12:13.833605809-08:00",
+         "seqnum" : 2,
+         "receiveTimestamp" : "2016-12-12T21:12:15.774115081-08:00",
+         "senderTTL" : 250,
+         "errorEstimate" : 1,
+         "timestamp" : "2016-12-12T21:12:15.774321239-08:00",
+         "senderSeqnum" : 2,
+         "senderErrorEstimate" : 257,
+         "senderSize" : 56
+      },
+      {
+         "senderTimestamp" : "2016-12-12T21:12:13.833613447-08:00",
+         "finishedTimestamp" : "2016-12-12T21:12:13.862666271-08:00",
+         "seqnum" : 3,
+         "receiveTimestamp" : "2016-12-12T21:12:16.454055649-08:00",
+         "senderTTL" : 250,
+         "errorEstimate" : 1,
+         "timestamp" : "2016-12-12T21:12:16.454300462-08:00",
+         "senderSeqnum" : 3,
+         "senderErrorEstimate" : 257,
+         "senderSize" : 56
+      },
+      {
+         "senderTimestamp" : "2016-12-12T21:12:13.862672913-08:00",
+         "finishedTimestamp" : "2016-12-12T21:12:13.998772663-08:00",
+         "seqnum" : 4,
+         "receiveTimestamp" : "2016-12-12T21:12:16.580967637-08:00",
+         "senderTTL" : 250,
+         "errorEstimate" : 1,
+         "timestamp" : "2016-12-12T21:12:16.581173796-08:00",
+         "senderSeqnum" : 4,
+         "senderErrorEstimate" : 257,
+         "senderSize" : 56
+      }
+   ]
+}
+sigsegv:twamp tcaine$ 
+```
+
+## Client Library Synopsis
 
 ```
 c := client.NewClient()
