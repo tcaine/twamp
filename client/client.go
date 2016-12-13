@@ -27,7 +27,7 @@ const (
 
 type TwampClient struct{}
 
-func New() *TwampClient {
+func NewClient() *TwampClient {
 	return &TwampClient{}
 }
 
