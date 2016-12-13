@@ -52,7 +52,6 @@ round-trip min/avg/max/stddev = 27.456/81.008/924.369/115.346 ms
 ## SYNOPSIS
 
 ```
-
 c := client.NewClient()
 connection, err := c.Connect("10.1.1.200:862")
 if err != nil {
@@ -64,7 +63,7 @@ session, err := connection.CreateSession(
 		Port:    6666,
 		Timeout: 1,
 		Padding: 42,
-		TOS:     0,
+		TOS:     client.EF,
 		},
 	)
 if err != nil {
