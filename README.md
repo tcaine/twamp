@@ -52,43 +52,42 @@ round-trip min/avg/max/stddev = 27.456/81.008/924.369/115.346 ms
 ## SYNOPSIS
 
 ```
-	import "github.com/tcaine/twamp/client"
 
-	remoteServer := "10.1.1.200:862"
-        interval := 1
-        count := 5
-        rapid := false
-        size := 42
-        tos := 0
-        wait := 1
-        port := 6666
+remoteServer := "10.1.1.200:862"
+interval := 1
+count := 5
+rapid := false
+size := 42
+tos := 0
+wait := 1
+port := 6666
 
-        c := client.New()
-        connection, err := c.Connect(remoteServer)
-        if err != nil {
-                log.Fatal(err)
-        }
+c := client.New()
+connection, err := c.Connect(remoteServer)
+if err != nil {
+	log.Fatal(err)
+}
 
-        session, err := connection.CreateSession(
-                client.TwampSessionConfig{
-                        Port:    port,
-                        Timeout: wait,
-                        Padding: size,
-                        TOS:     tos,
-                },
-        )
-        if err != nil {
-                log.Fatal(err)
-        }
+session, err := connection.CreateSession(
+	client.TwampSessionConfig{
+		Port:    port,
+		Timeout: wait,
+		Padding: size,
+		TOS:     tos,
+		},
+	)
+if err != nil {
+	log.Fatal(err)
+}
 
-        test, err := session.CreateTest()
-        if err != nil {
-                log.Fatal(err)
-        }
+test, err := session.CreateTest()
+if err != nil {
+	log.Fatal(err)
+}
 
-        test.Ping(count, rapid, interval)
+test.Ping(count, rapid, interval)
 
-        session.Stop()
-        connection.Close()
+session.Stop()
+connection.Close()
 ```
 
