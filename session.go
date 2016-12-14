@@ -77,7 +77,7 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 	if err != nil {
 		return nil, err
 	}
-	localAddress := fmt.Sprintf("%s:%d", test.GetLocalTestHost(), 6666)
+	localAddress := fmt.Sprintf("%s:%d", test.GetLocalTestHost(), s.GetConfig().Port)
 	localAddr, err := net.ResolveUDPAddr("udp", localAddress)
 	if err != nil {
 		return nil, err
