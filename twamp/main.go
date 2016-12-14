@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/tcaine/twamp/client"
+	"github.com/tcaine/twamp"
 	"log"
 	"os"
 )
@@ -30,14 +30,14 @@ func main() {
 	remoteIP := args[0]
 	remoteServer := fmt.Sprintf("%s:%d", remoteIP, 862)
 
-	c := client.NewClient()
+	c := twamp.NewClient()
 	connection, err := c.Connect(remoteServer)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	session, err := connection.CreateSession(
-		client.TwampSessionConfig{
+		twamp.TwampSessionConfig{
 			Port:    *port,
 			Timeout: *wait,
 			Padding: *size,

@@ -1,4 +1,4 @@
-package client
+package twamp
 
 import (
 	"encoding/binary"
