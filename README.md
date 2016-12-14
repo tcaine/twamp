@@ -12,11 +12,11 @@ if err != nil {
 }
 
 session, err := connection.CreateSession(
-	client.TwampSessionConfig{
+	twamp.TwampSessionConfig{
 		Port:    6666,
 		Timeout: 1,
 		Padding: 42,
-		TOS:     client.EF,
+		TOS:     twamp.EF,
 		},
 	)
 if err != nil {
