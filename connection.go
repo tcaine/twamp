@@ -85,9 +85,6 @@ type TwampServerStart struct {
 }
 
 type TwampSessionConfig struct {
-	//	Port    uint16
-	//	Padding uint32
-	//	Timeout uint32
 	Port    int
 	Padding int
 	Timeout int
