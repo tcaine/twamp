@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 )
@@ -32,12 +31,9 @@ func NewClient() *TwampClient {
 }
 
 func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
-	//	log.Printf("Connecting to %s....", hostname)
-
 	// connect to remote host
 	conn, err := net.Dial("tcp", hostname)
 	if err != nil {
-		log.Printf("Could not connect to %s: %s\n", hostname, err)
 		return nil, err
 	}
 
@@ -53,16 +49,12 @@ func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
 	// check greeting mode for errors
 	switch greeting.Mode {
 	case ModeUnspecified:
-		log.Println("The TWAMP server is not interested in communicating with you.")
-		os.Exit(1)
+		return nil, errors.New("The TWAMP server is not interested in communicating with you.")
 	case ModeUnauthenticated:
-		// yep
 	case ModeAuthenticated:
-		log.Println("Authentication is not currently supported.")
-		os.Exit(1)
+		return nil, errors.New("Authentication is not currently supported.")
 	case ModeEncypted:
-		log.Println("Encyption is not currently supported.")
-		os.Exit(1)
+		return nil, errors.New("Encyption is not currently supported.")
 	}
 
 	// negotiate TWAMP session configuration
@@ -85,8 +77,13 @@ func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
 func readFromSocket(reader io.Reader, size int) (bytes.Buffer, error) {
 	buf := make([]byte, size)
 	buffer := *bytes.NewBuffer(buf)
-	_, error := reader.Read(buf)
-	return buffer, error
+	bytesRead, err := reader.Read(buf)
+
+	if err != nil && bytesRead < size {
+		return buffer, errors.New(fmt.Sprintf("readFromSocket: expected %d bytes, got %d", size, bytesRead))
+	}
+
+	return buffer, err
 }
 
 /*
