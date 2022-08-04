@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 )
 
 /*
@@ -31,7 +32,7 @@ func NewClient() *TwampClient {
 
 func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
 	// connect to remote host
-	conn, err := net.Dial("tcp", hostname)
+	conn, err := net.DialTimeout("tcp", hostname, time.Second*5)
 	if err != nil {
 		return nil, err
 	}
