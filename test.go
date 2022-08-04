@@ -254,6 +254,7 @@ func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
 		(float64(Stats.Max) / float64(time.Millisecond)),
 		(float64(Stats.StdDev) / float64(time.Millisecond)),
 	)
+	defer t.conn.Close()
 
 	return Results
 }
@@ -288,6 +289,7 @@ func (t *TwampTest) RunX(count int) *PingResults {
 	Stats.Avg = time.Duration(int64(TotalRTT) / int64(count))
 	Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
 	Stats.StdDev = Results.stdDev(Stats.Avg)
+	defer t.conn.Close()
 
 	return Results
 }
