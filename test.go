@@ -177,6 +177,14 @@ func (t *TwampTest) FormatJSON(r *PingResults) {
 	fmt.Printf("%s\n", string(doc))
 }
 
+func (t *TwampTest) ReturnJSON(r *PingResults) string {
+	doc, err := json.Marshal(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return fmt.Sprintf("%s\n", string(doc))
+}
+
 func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
 	Stats := &PingResultStats{}
 	Results := &PingResults{Stat: Stats}
