@@ -21,8 +21,8 @@ func NewTwampTimestamp(t time.Time) *TwampTimestamp {
 	}
 }
 
-func NewTimestamp(sec uint32, nsec uint32) time.Time {
-	t := time.Unix(int64(sec), int64(nsec))
+func NewTimestamp(twampTimestamp TwampTimestamp) time.Time {
+	t := time.Unix(int64(twampTimestamp.Integer), int64(twampTimestamp.Fraction))
 	t = t.AddDate(-70, 0, 0) // convert epoch from 1970 to 1900 per RFC 1305
 	return t
 }
