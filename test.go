@@ -14,7 +14,7 @@ import (
 )
 
 /*
-	TWAMP test connection used for running TWAMP tests.
+TWAMP test connection used for running TWAMP tests.
 */
 type TwampTest struct {
 	session *TwampSession
@@ -23,7 +23,6 @@ type TwampTest struct {
 }
 
 /*
-
  */
 func (t *TwampTest) SetConnection(conn *net.UDPConn) {
 	c := ipv4.NewConn(conn)
@@ -43,21 +42,21 @@ func (t *TwampTest) SetConnection(conn *net.UDPConn) {
 }
 
 /*
-	Get TWAMP Test UDP connection.
+Get TWAMP Test UDP connection.
 */
 func (t *TwampTest) GetConnection() *net.UDPConn {
 	return t.conn
 }
 
 /*
-	Get the underlying TWAMP control session for the TWAMP test.
+Get the underlying TWAMP control session for the TWAMP test.
 */
 func (t *TwampTest) GetSession() *TwampSession {
 	return t.session
 }
 
 /*
-	Get the remote TWAMP IP/UDP address.
+Get the remote TWAMP IP/UDP address.
 */
 func (t *TwampTest) RemoteAddr() (*net.UDPAddr, error) {
 	address := fmt.Sprintf("%s:%d", t.GetRemoteTestHost(), t.GetRemoteTestPort())
@@ -65,14 +64,14 @@ func (t *TwampTest) RemoteAddr() (*net.UDPAddr, error) {
 }
 
 /*
-	Get the remote TWAMP UDP port number.
+Get the remote TWAMP UDP port number.
 */
 func (t *TwampTest) GetRemoteTestPort() uint16 {
 	return t.GetSession().port
 }
 
 /*
-	Get the local IP address for the TWAMP control session.
+Get the local IP address for the TWAMP control session.
 */
 func (t *TwampTest) GetLocalTestHost() string {
 	localAddress := t.session.GetConnection().LocalAddr()
@@ -80,7 +79,7 @@ func (t *TwampTest) GetLocalTestHost() string {
 }
 
 /*
-	Get the remote IP address for the TWAMP control session.
+Get the remote IP address for the TWAMP control session.
 */
 func (t *TwampTest) GetRemoteTestHost() string {
 	remoteAddress := t.session.GetConnection().RemoteAddr()
@@ -88,7 +87,7 @@ func (t *TwampTest) GetRemoteTestHost() string {
 }
 
 /*
-	Run a TWAMP test and return a pointer to the TwampResults.
+Run a TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) Run() (*TwampResults, error) {
 
@@ -99,7 +98,6 @@ func (t *TwampTest) Run() (*TwampResults, error) {
 	// receive test packets
 	buffer, err := readFromSocket(t.GetConnection(), 64)
 	if err != nil {
-		//		log.Printf("Read error: %s\n", err)
 		return nil, err
 	}
 
@@ -283,6 +281,7 @@ func (t *TwampTest) RunX(count int) *PingResults {
 			TotalRTT += results.GetRTT()
 			Stats.Received++
 			Results.Results = append(Results.Results, results)
+			log.Println("%+v", results)
 		}
 	}
 

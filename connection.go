@@ -33,7 +33,7 @@ func (c *TwampConnection) RemoteAddr() net.Addr {
 }
 
 /*
-	TWAMP client session negotiation message.
+TWAMP client session negotiation message.
 */
 type TwampClientSetUpResponse struct {
 	Mode     uint32
@@ -43,7 +43,7 @@ type TwampClientSetUpResponse struct {
 }
 
 /*
-	TWAMP server greeting message.
+TWAMP server greeting message.
 */
 type TwampServerGreeting struct {
 	Mode      uint32   // modes (4 bytes)
@@ -85,10 +85,11 @@ type TwampServerStart struct {
 }
 
 type TwampSessionConfig struct {
-	Port    int
-	Padding int
-	Timeout int
-	TOS     int
+	Port       int
+	SenderPort int
+	Padding    int
+	Timeout    int
+	TOS        int
 }
 
 func (c *TwampConnection) getTwampServerStartMessage() (*TwampServerStart, error) {
@@ -113,6 +114,7 @@ func (c *TwampConnection) getTwampServerStartMessage() (*TwampServerStart, error
 /* Byte offsets for Request-TW-Session TWAMP PDU */
 const (
 	command         = 0
+	ipVersion       = 1
 	senderPort      = 12
 	receiverPort    = 14
 	paddingLength   = 64
@@ -126,7 +128,8 @@ type RequestTwSession []byte
 func (b RequestTwSession) Encode(c TwampSessionConfig) {
 	start_time := NewTwampTimestamp(time.Now())
 	b[command] = byte(5)
-	binary.BigEndian.PutUint16(b[senderPort:], 6666)
+	b[ipVersion] = byte(4) // As per RFC, this value can be 4 (IPv4) or 6 (IPv6).
+	binary.BigEndian.PutUint16(b[senderPort:], uint16(c.SenderPort))
 	binary.BigEndian.PutUint16(b[receiverPort:], uint16(c.Port))
 	binary.BigEndian.PutUint32(b[paddingLength:], uint32(c.Padding))
 	binary.BigEndian.PutUint32(b[startTime:], start_time.Integer)
