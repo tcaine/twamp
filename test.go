@@ -1,6 +1,7 @@
 package twamp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -11,10 +12,11 @@ import (
 	"net"
 	"strings"
 	"time"
+	"unsafe"
 )
 
 /*
-	TWAMP test connection used for running TWAMP tests.
+TWAMP test connection used for running TWAMP tests.
 */
 type TwampTest struct {
 	session *TwampSession
@@ -23,7 +25,12 @@ type TwampTest struct {
 }
 
 /*
+Function header called when a test package arrived back.
+Can be used to show some progress
+ */
+type TwampTestCallbackFunction func(result *TwampResults);
 
+/*
  */
 func (t *TwampTest) SetConnection(conn *net.UDPConn) {
 	c := ipv4.NewConn(conn)
@@ -43,21 +50,21 @@ func (t *TwampTest) SetConnection(conn *net.UDPConn) {
 }
 
 /*
-	Get TWAMP Test UDP connection.
+Get TWAMP Test UDP connection.
 */
 func (t *TwampTest) GetConnection() *net.UDPConn {
 	return t.conn
 }
 
 /*
-	Get the underlying TWAMP control session for the TWAMP test.
+Get the underlying TWAMP control session for the TWAMP test.
 */
 func (t *TwampTest) GetSession() *TwampSession {
 	return t.session
 }
 
 /*
-	Get the remote TWAMP IP/UDP address.
+Get the remote TWAMP IP/UDP address.
 */
 func (t *TwampTest) RemoteAddr() (*net.UDPAddr, error) {
 	address := fmt.Sprintf("%s:%d", t.GetRemoteTestHost(), t.GetRemoteTestPort())
@@ -65,14 +72,14 @@ func (t *TwampTest) RemoteAddr() (*net.UDPAddr, error) {
 }
 
 /*
-	Get the remote TWAMP UDP port number.
+Get the remote TWAMP UDP port number.
 */
 func (t *TwampTest) GetRemoteTestPort() uint16 {
 	return t.GetSession().port
 }
 
 /*
-	Get the local IP address for the TWAMP control session.
+Get the local IP address for the TWAMP control session.
 */
 func (t *TwampTest) GetLocalTestHost() string {
 	localAddress := t.session.GetConnection().LocalAddr()
@@ -80,58 +87,74 @@ func (t *TwampTest) GetLocalTestHost() string {
 }
 
 /*
-	Get the remote IP address for the TWAMP control session.
+Get the remote IP address for the TWAMP control session.
 */
 func (t *TwampTest) GetRemoteTestHost() string {
 	remoteAddress := t.session.GetConnection().RemoteAddr()
 	return strings.Split(remoteAddress.String(), ":")[0]
 }
 
+type MeasurementPacket struct {
+	Sequence uint32
+	Timestamp TwampTimestamp
+	ErrorEstimate uint16
+	MBZ uint16
+	ReceiveTimeStamp TwampTimestamp
+	SenderSequence uint32
+	SenderTimeStamp TwampTimestamp
+	SenderErrorEstimate uint16
+	Mbz uint16
+	SenderTtl byte
+	//Padding []byte
+}
+
 /*
-	Run a TWAMP test and return a pointer to the TwampResults.
+Run a TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) Run() (*TwampResults, error) {
-
+	paddingSize := t.GetSession().config.Padding
 	senderSeqNum := t.seq
 
-	size := t.sendTestMessage(false)
+	size := t.sendTestMessage(true)
 
-	// receive test packets
-	buffer, err := readFromSocket(t.GetConnection(), 64)
+	// receive test packets - allocate a receive buffer of a size we expect to receive plus a bit to know if we get some garbage
+	buffer, err := readFromSocket(t.GetConnection(), (int(unsafe.Sizeof(MeasurementPacket{}))+paddingSize)*2)
 	if err != nil {
-		//		log.Printf("Read error: %s\n", err)
 		return nil, err
 	}
 
 	finished := time.Now()
 
+	responseHeader := MeasurementPacket{}
+	err = binary.Read(&buffer, binary.BigEndian, &responseHeader)
+	if err != nil {
+		log.Fatalf("Failed to deserialize measurement package. %v", err)
+	}
+
+	responsePadding := make([]byte, paddingSize, paddingSize)
+	receivedPaddignSize, err := buffer.Read(responsePadding)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Error when receivin padding. %v\n", err))
+	}
+
+	if receivedPaddignSize != paddingSize {
+		return nil, errors.New(fmt.Sprintf("Incorrect padding. Expected padding size was %d but received %d.\n", paddingSize, receivedPaddignSize))
+	}
+
 	// process test results
 	r := &TwampResults{}
 	r.SenderSize = size
-	r.SeqNum = binary.BigEndian.Uint32(buffer.Next(4))
-
-	r.Timestamp = NewTimestamp(
-		binary.BigEndian.Uint32(buffer.Next(4)),
-		binary.BigEndian.Uint32(buffer.Next(4)),
-	)
-
-	r.ErrorEstimate = binary.BigEndian.Uint16(buffer.Next(2))
-	_ = buffer.Next(2)
-	r.ReceiveTimestamp = NewTimestamp(
-		binary.BigEndian.Uint32(buffer.Next(4)),
-		binary.BigEndian.Uint32(buffer.Next(4)),
-	)
-	r.SenderSeqNum = binary.BigEndian.Uint32(buffer.Next(4))
-	r.SenderTimestamp = NewTimestamp(
-		binary.BigEndian.Uint32(buffer.Next(4)),
-		binary.BigEndian.Uint32(buffer.Next(4)),
-	)
-	r.SenderErrorEstimate = binary.BigEndian.Uint16(buffer.Next(2))
-	_ = buffer.Next(2)
-	r.SenderTTL = byte(buffer.Next(1)[0])
+	r.SeqNum = responseHeader.Sequence
+	r.Timestamp = NewTimestamp(responseHeader.Timestamp)
+	r.ErrorEstimate = responseHeader.ErrorEstimate
+	r.ReceiveTimestamp = NewTimestamp(responseHeader.ReceiveTimeStamp)
+	r.SenderSeqNum = responseHeader.SenderSequence
+	r.SenderTimestamp = NewTimestamp(responseHeader.SenderTimeStamp)
+	r.SenderErrorEstimate = responseHeader.SenderErrorEstimate
+	r.SenderTTL = responseHeader.SenderTtl
 	r.FinishedTimestamp = finished
 
-	if senderSeqNum != r.SeqNum {
+	if senderSeqNum != r.SenderSeqNum {
 		return nil, errors.New(
 			fmt.Sprintf("Expected seq # %d but received %d.\n", senderSeqNum, r.SeqNum),
 		)
@@ -141,28 +164,47 @@ func (t *TwampTest) Run() (*TwampResults, error) {
 }
 
 func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
-	now := NewTwampTimestamp(time.Now())
-	totalSize := 14 + int(t.GetSession().config.Padding)
-	var pdu []byte = make([]byte, totalSize)
-
-	binary.BigEndian.PutUint32(pdu[0:], t.seq)        // sequence number
-	binary.BigEndian.PutUint32(pdu[4:], now.Integer)  // timestamp (integer)
-	binary.BigEndian.PutUint32(pdu[8:], now.Fraction) // timestamp (fraction)
-	pdu[12] = byte(1)                                 // Synchronized, MBZ, Scale
-	pdu[13] = byte(1)                                 // multiplier
+	packetHeader := MeasurementPacket{
+		Sequence:            t.seq,
+		Timestamp:           *NewTwampTimestamp(time.Now()),
+		ErrorEstimate:       0x0101,
+		MBZ:                 0x0000,
+		ReceiveTimeStamp:    TwampTimestamp{},
+		SenderSequence:      0,
+		SenderTimeStamp:     TwampTimestamp{},
+		SenderErrorEstimate: 0x0000,
+		Mbz:                 0x0000,
+		SenderTtl:           87,
+	}
 
 	// seed psuedo-random number generator if requested
 	if !use_all_zeroes {
 		rand.NewSource(int64(time.Now().Unix()))
 	}
 
-	for x := 14; x < totalSize; x++ {
+	paddingSize := t.GetSession().config.Padding
+	padding := make([]byte, paddingSize, paddingSize)
+
+	for x := 0; x < paddingSize; x++ {
 		if use_all_zeroes {
-			pdu[x] = 0
+			padding[x] = 0
 		} else {
-			pdu[x] = byte(rand.Intn(255))
+			padding[x] = byte(rand.Intn(255))
 		}
 	}
+
+	var binaryBuffer bytes.Buffer
+	err := binary.Write(&binaryBuffer, binary.BigEndian, packetHeader)
+	if err != nil {
+		log.Fatalf("Failed to serialize measurement package. %v", err)
+	}
+
+	headerBytes := binaryBuffer.Bytes()
+	headerSize := binaryBuffer.Len()
+	totalSize := headerSize+paddingSize
+	var pdu []byte = make([]byte, totalSize)
+	copy(pdu[0:], headerBytes)
+	copy(pdu[headerSize:], padding)
 
 	t.GetConnection().Write(pdu)
 	t.seq++
@@ -175,6 +217,14 @@ func (t *TwampTest) FormatJSON(r *PingResults) {
 		log.Fatal(err)
 	}
 	fmt.Printf("%s\n", string(doc))
+}
+
+func (t *TwampTest) ReturnJSON(r *PingResults) string {
+	doc, err := json.Marshal(r)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return fmt.Sprintf("%s\n", string(doc))
 }
 
 func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
@@ -190,6 +240,7 @@ func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
 		Stats.Transmitted++
 		results, err := t.Run()
 		if err != nil {
+			// TODO Do we need error logging here? I guess not because dot represents the sort error message here but should be double checked.
 			if isRapid {
 				fmt.Printf(".")
 			}
@@ -246,11 +297,12 @@ func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
 		(float64(Stats.Max) / float64(time.Millisecond)),
 		(float64(Stats.StdDev) / float64(time.Millisecond)),
 	)
+	defer t.conn.Close()
 
 	return Results
 }
 
-func (t *TwampTest) RunX(count int) *PingResults {
+func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction) *PingResults {
 	Stats := &PingResultStats{}
 	Results := &PingResults{Stat: Stats}
 	var TotalRTT time.Duration = 0
@@ -259,6 +311,7 @@ func (t *TwampTest) RunX(count int) *PingResults {
 		Stats.Transmitted++
 		results, err := t.Run()
 		if err != nil {
+			log.Printf("%v\n", err)
 		} else {
 			if i == 0 {
 				Stats.Min = results.GetRTT()
@@ -274,12 +327,16 @@ func (t *TwampTest) RunX(count int) *PingResults {
 			TotalRTT += results.GetRTT()
 			Stats.Received++
 			Results.Results = append(Results.Results, results)
+			if callback != nil {
+				callback(results)
+			}
 		}
 	}
 
 	Stats.Avg = time.Duration(int64(TotalRTT) / int64(count))
 	Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
 	Stats.StdDev = Results.stdDev(Stats.Avg)
+	defer t.conn.Close()
 
 	return Results
 }

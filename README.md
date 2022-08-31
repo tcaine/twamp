@@ -5,33 +5,41 @@ TWAMP client for go
 ## Client Library Synopsis
 
 ```
-c := client.NewClient()
-connection, err := c.Connect("10.1.1.200:862")
-if err != nil {
-	log.Fatal(err)
-}
+	c := twamp.NewClient()
+	connection, err := c.Connect("10.1.1.200:862")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-session, err := connection.CreateSession(
-	twamp.TwampSessionConfig{
-		Port:    6666,
-		Timeout: 1,
-		Padding: 42,
-		TOS:     twamp.EF,
+	session, err := connection.CreateSession(
+		twamp.TwampSessionConfig{
+			ReceiverPort: 6666,
+			SenderPort:   6666,
+			Timeout:      1,
+			Padding:      100,
+			TOS:          twamp.EF,
 		},
 	)
-if err != nil {
-	log.Fatal(err)
-}
+	if err != nil {
+		log.Fatal(err)
+	}
 
-test, err := session.CreateTest()
-if err != nil {
-	log.Fatal(err)
-}
+	test, err := session.CreateTest()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-results := test.RunX(count)
+	count := 2000
+	results := test.RunX(count, func(result *twamp.TwampResults) {
+		fmt.Printf("%.2f  \r", float64(result.SenderSeqNum)/float64(count)*100.0)
+	})
+	if err != nil {
+		log.Fatal("%v", err)
+	}
 
-session.Stop()
-connection.Close()
+	log.Printf("Stat: %+v\n", *results.Stat)
+	session.Stop()
+	connection.Close()
 ```
 
 ## TWAMP ping command line utility
