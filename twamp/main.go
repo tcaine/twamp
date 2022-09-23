@@ -3,9 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/tcaine/twamp"
 	"log"
 	"os"
+
+	"github.com/tcaine/twamp"
 )
 
 func main() {
@@ -38,10 +39,11 @@ func main() {
 
 	session, err := connection.CreateSession(
 		twamp.TwampSessionConfig{
-			Port:    *port,
-			Timeout: *wait,
-			Padding: *size,
-			TOS:     *tos,
+			ReceiverPort: *port,
+			SenderPort:   *port,
+			Timeout:      *wait,
+			Padding:      *size,
+			TOS:          *tos,
 		},
 	)
 	if err != nil {
@@ -55,7 +57,7 @@ func main() {
 
 	switch *mode {
 	case "json":
-		results := test.RunX(*count)
+		results := test.RunX(*count, nil)
 		test.FormatJSON(results)
 	case "ping":
 		test.Ping(*count, *rapid, *interval)
