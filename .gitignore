@@ -1,0 +1,3 @@
+*.swp
+bin
+go.sum
