@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 	"unsafe"
+	"os"
 )
 
 /*
@@ -227,16 +228,49 @@ func (t *TwampTest) ReturnJSON(r *PingResults) string {
 	return fmt.Sprintf("%s\n", string(doc))
 }
 
-func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
+func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) *PingResults {
+	defer t.conn.Close()
+	continuous := false
+	if count == 0 {
+		continuous = true
+	}
 	Stats := &PingResultStats{}
 	Results := &PingResults{Stat: Stats}
+	isRapid := interval == time.Duration(0)
 	var TotalRTT time.Duration = 0
+
+	// Calculate summaries upon returning
+	defer func() {
+		Stats.Avg = time.Duration(int64(TotalRTT) / int64(Stats.Transmitted))
+		Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
+		Stats.StdDev = Results.stdDev(Stats.Avg)
+
+		fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
+		fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
+			Stats.Transmitted,
+			Stats.Received,
+			Stats.Loss)
+		fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
+			(float64(Stats.Min) / float64(time.Millisecond)),
+			(float64(Stats.Avg) / float64(time.Millisecond)),
+			(float64(Stats.Max) / float64(time.Millisecond)),
+			(float64(Stats.StdDev) / float64(time.Millisecond)),
+		)
+	}()
 
 	packetSize := 14 + t.GetSession().GetConfig().Padding
 
 	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
 
-	for i := 0; i < count; i++ {
+	iterations := 0
+	for continuous || iterations < count {
+		// Check if we have received a signal
+		select {
+		case <-sig:
+			return Results
+		default:
+		}
+
 		Stats.Transmitted++
 		results, err := t.Run()
 		if err != nil {
@@ -245,7 +279,7 @@ func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
 				fmt.Printf(".")
 			}
 		} else {
-			if i == 0 {
+			if iterations == 0 {
 				Stats.Min = results.GetRTT()
 				Stats.Max = results.GetRTT()
 			}
@@ -274,46 +308,56 @@ func (t *TwampTest) Ping(count int, isRapid bool, interval int) *PingResults {
 		}
 
 		if !isRapid {
-			time.Sleep(time.Duration(interval) * time.Second)
+			// Wait for interval or signal, whichever comes first
+			select {
+			case <-time.After(interval):
+			case <-sig:
+				return Results
+			}
 		}
+		iterations += 1
 	}
 
 	if isRapid {
 		fmt.Printf("\n")
 	}
 
-	Stats.Avg = time.Duration(int64(TotalRTT) / int64(count))
-	Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
-	Stats.StdDev = Results.stdDev(Stats.Avg)
-
-	fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
-	fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
-		Stats.Transmitted,
-		Stats.Received,
-		Stats.Loss)
-	fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
-		(float64(Stats.Min) / float64(time.Millisecond)),
-		(float64(Stats.Avg) / float64(time.Millisecond)),
-		(float64(Stats.Max) / float64(time.Millisecond)),
-		(float64(Stats.StdDev) / float64(time.Millisecond)),
-	)
-	defer t.conn.Close()
-
 	return Results
 }
 
-func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction) *PingResults {
+func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, sig chan os.Signal) *PingResults {
+	defer t.conn.Close()
+	continuous := false
+	if count == 0 {
+		continuous = true
+	}
 	Stats := &PingResultStats{}
 	Results := &PingResults{Stat: Stats}
+	isRapid := interval == time.Duration(0)
 	var TotalRTT time.Duration = 0
 
-	for i := 0; i < count; i++ {
+	// Calculate totals upon returning
+	defer func() {
+		Stats.Avg = time.Duration(int64(TotalRTT) / int64(Stats.Transmitted))
+		Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
+		Stats.StdDev = Results.stdDev(Stats.Avg)
+	}()
+
+
+	iterations := 0
+	for continuous || iterations < count {
+		// Check if signal has been received
+		select {
+		case <-sig:
+			return Results
+		default:
+		}
 		Stats.Transmitted++
 		results, err := t.Run()
 		if err != nil {
 			log.Printf("%v\n", err)
 		} else {
-			if i == 0 {
+			if iterations == 0 {
 				Stats.Min = results.GetRTT()
 				Stats.Max = results.GetRTT()
 			}
@@ -331,12 +375,17 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction) *PingRes
 				callback(results)
 			}
 		}
-	}
 
-	Stats.Avg = time.Duration(int64(TotalRTT) / int64(count))
-	Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
-	Stats.StdDev = Results.stdDev(Stats.Avg)
-	defer t.conn.Close()
+		if !isRapid {
+			// Wait for interval or signal, whichever comes first
+			select {
+			case <-time.After(interval):
+			case <-sig:
+				return Results
+			}
+		}
+		iterations += 1
+	}
 
 	return Results
 }
