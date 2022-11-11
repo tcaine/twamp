@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"time"
 )
@@ -74,10 +73,12 @@ func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
 	return twampConnection, nil
 }
 
-func readFromSocket(reader io.Reader, size int) (bytes.Buffer, error) {
+func readFromSocket(conn net.Conn, size int, timeoutSeconds int) (bytes.Buffer, error) {
+	timeout := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
 	buf := make([]byte, size)
 	buffer := *bytes.NewBuffer(buf)
-	bytesRead, err := reader.Read(buf)
+	conn.SetReadDeadline(timeout)
+	bytesRead, err := conn.Read(buf)
 
 	if err != nil && bytesRead < size {
 		return buffer, errors.New(fmt.Sprintf("readFromSocket: expected %d bytes, got %d", size, bytesRead))

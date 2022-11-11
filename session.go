@@ -45,6 +45,10 @@ func (s *TwampSession) GetConfig() TwampSessionConfig {
 	return s.config
 }
 
+func (s *TwampSession) GetTimeout() int {
+	return s.config.Timeout
+}
+
 func (s *TwampSession) Write(buf []byte) {
 	s.GetConnection().Write(buf)
 }
@@ -55,7 +59,7 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 
 	s.Write(pdu)
 
-	startAckBuffer, err := readFromSocket(s.GetConnection(), 32)
+	startAckBuffer, err := readFromSocket(s.GetConnection(), 32, s.GetTimeout())
 	if err != nil {
 		log.Printf("Cannot read: %s\n", err)
 		return nil, err

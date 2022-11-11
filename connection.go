@@ -9,11 +9,12 @@ import (
 )
 
 type TwampConnection struct {
-	conn net.Conn
+	conn    net.Conn
+	timeout int
 }
 
 func NewTwampConnection(conn net.Conn) *TwampConnection {
-	return &TwampConnection{conn: conn}
+	return &TwampConnection{conn: conn, timeout: 5}
 }
 
 func (c *TwampConnection) GetConnection() net.Conn {
@@ -61,7 +62,7 @@ func (c *TwampConnection) sendTwampClientSetupResponse() {
 
 func (c *TwampConnection) getTwampServerGreetingMessage() (*TwampServerGreeting, error) {
 	// check the greeting message from TWAMP server
-	buffer, err := readFromSocket(c.conn, 64)
+	buffer, err := readFromSocket(c.conn, 64, c.timeout)
 	if err != nil {
 		log.Printf("Cannot read: %s\n", err)
 		return nil, err
@@ -107,7 +108,7 @@ type TwampSessionConfig struct {
 
 func (c *TwampConnection) getTwampServerStartMessage() (*TwampServerStart, error) {
 	// check the start message from TWAMP server
-	buffer, err := readFromSocket(c.conn, 48)
+	buffer, err := readFromSocket(c.conn, 48, c.timeout)
 	if err != nil {
 		log.Printf("Cannot read: %s\n", err)
 		return nil, err
@@ -159,7 +160,7 @@ func (c *TwampConnection) CreateSession(config TwampSessionConfig) (*TwampSessio
 
 	c.GetConnection().Write(pdu)
 
-	acceptBuffer, err := readFromSocket(c.GetConnection(), 48)
+	acceptBuffer, err := readFromSocket(c.GetConnection(), 48, 5)
 	if err != nil {
 		log.Printf("Cannot read: %s\n", err)
 		return nil, err

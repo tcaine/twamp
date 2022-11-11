@@ -65,6 +65,13 @@ func (t *TwampTest) GetSession() *TwampSession {
 }
 
 /*
+Get the configured timeout from the underlying TWAMP control session.
+*/
+func (t *TwampTest) GetTimeout() int {
+	return t.GetSession().GetTimeout()
+}
+
+/*
 Get the remote TWAMP IP/UDP address.
 */
 func (t *TwampTest) RemoteAddr() (*net.UDPAddr, error) {
@@ -119,7 +126,7 @@ func (t *TwampTest) Run() (*TwampResults, error) {
 	size := t.sendTestMessage(true)
 
 	// receive test packets - allocate a receive buffer of a size we expect to receive plus a bit to know if we get some garbage
-	buffer, err := readFromSocket(t.GetConnection(), (int(unsafe.Sizeof(MeasurementPacket{}))+paddingSize)*2)
+	buffer, err := readFromSocket(t.GetConnection(), (int(unsafe.Sizeof(MeasurementPacket{}))+paddingSize)*2, t.GetTimeout())
 	if err != nil {
 		return nil, err
 	}
@@ -262,13 +269,23 @@ func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) 
 
 	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
 
+	nextRun := time.Now()
 	iterations := 0
 	for continuous || iterations < count {
-		// Check if we have received a signal
-		select {
-		case <-sig:
-			return Results
-		default:
+		currentTime := time.Now()
+		// Wait until next scheduled run
+		if currentTime.Before(nextRun) {
+			// Check if we have received an os interrupt while we wait
+			select {
+			case <-sig:
+				return Results
+			case <-time.After(nextRun.Sub(currentTime)):
+			}
+		}
+		if isRapid {
+			nextRun = time.Now()
+		} else {
+			nextRun = time.Now().Add(interval)
 		}
 
 		Stats.Transmitted++
@@ -306,15 +323,6 @@ func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) 
 				)
 			}
 		}
-
-		if !isRapid {
-			// Wait for interval or signal, whichever comes first
-			select {
-			case <-time.After(interval):
-			case <-sig:
-				return Results
-			}
-		}
 		iterations += 1
 	}
 
@@ -344,18 +352,29 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 	}()
 
 
+	nextRun := time.Now()
 	iterations := 0
 	for continuous || iterations < count {
-		// Check if signal has been received
-		select {
-		case <-sig:
-			return Results
-		default:
+		currentTime := time.Now()
+		// Wait until next scheduled run
+		if currentTime.Before(nextRun) {
+			// Check if we have received an os interrupt while we wait
+			select {
+			case <-sig:
+				return Results
+			case <-time.After(nextRun.Sub(currentTime)):
+			}
 		}
+		if isRapid {
+			nextRun = time.Now()
+		} else {
+			nextRun = time.Now().Add(interval)
+		}
+
 		Stats.Transmitted++
 		results, err := t.Run()
 		if err != nil {
-			log.Printf("%v\n", err)
+			//log.Printf("%v\n", err)
 		} else {
 			if iterations == 0 {
 				Stats.Min = results.GetRTT()
@@ -373,15 +392,6 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 			Results.Results = append(Results.Results, results)
 			if callback != nil {
 				callback(results)
-			}
-		}
-
-		if !isRapid {
-			// Wait for interval or signal, whichever comes first
-			select {
-			case <-time.After(interval):
-			case <-sig:
-				return Results
 			}
 		}
 		iterations += 1
