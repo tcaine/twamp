@@ -18,7 +18,7 @@ func main() {
 	rapid := flag.Bool("rapid", false, "Send requests as rapidly as possible (default count of 5, ignores interval)")
 	size := flag.Int("size", 42, "Size of request packets (0..65468 bytes)")
 	tos := flag.Int("tos", 0, "IP type-of-service value (0..255)")
-	wait := flag.Int("wait", 1, "Maximum wait time after sending final packet (seconds)")
+	timeout := flag.Int("timeout", 1, "Maximum wait time for a packet response (seconds)")
 	port := flag.Int("port", 6666, "UDP port to send request packets")
 	remotePort := flag.Int("remote-port", 862, "Remote host port")
 	mode := flag.String("mode", "ping", "Mode of operation (ping, json)")
@@ -52,7 +52,7 @@ func main() {
 		twamp.TwampSessionConfig{
 			ReceiverPort: *port,
 			SenderPort:   *port,
-			Timeout:      *wait,
+			Timeout:      *timeout,
 			Padding:      *size,
 			TOS:          *tos,
 		},
