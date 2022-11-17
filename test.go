@@ -236,7 +236,6 @@ func (t *TwampTest) ReturnJSON(r *PingResults) string {
 }
 
 func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) *PingResults {
-	defer t.conn.Close()
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -334,7 +333,6 @@ func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) 
 }
 
 func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, sig chan os.Signal) *PingResults {
-	defer t.conn.Close()
 	continuous := false
 	if count == 0 {
 		continuous = true
