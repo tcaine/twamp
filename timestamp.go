@@ -9,12 +9,15 @@ type TwampTimestamp struct {
 	Fraction uint32
 }
 
+// offset from UNIX epoch to NTP epoch
+const epochOffset = time.Duration(0x83aa7e80 * time.Second)
+
 /*
 	Converts a UNIX epoch time time.Time object into an RFC 1305 compliant time.
 */
 func NewTwampTimestamp(t time.Time) *TwampTimestamp {
 	// convert epoch from 1970 to 1900 per RFC 1305
-	t = t.AddDate(70, 0, 0)
+	t = t.Add(epochOffset)
 	return &TwampTimestamp{
 		Integer:  uint32(t.Unix()),
 		Fraction: uint32(t.Nanosecond()),
@@ -23,7 +26,8 @@ func NewTwampTimestamp(t time.Time) *TwampTimestamp {
 
 func NewTimestamp(twampTimestamp TwampTimestamp) time.Time {
 	t := time.Unix(int64(twampTimestamp.Integer), int64(twampTimestamp.Fraction))
-	t = t.AddDate(-70, 0, 0) // convert epoch from 1970 to 1900 per RFC 1305
+	// convert epoch from 1970 to 1900 per RFC 1305
+	t = t.Add(-1 * epochOffset)
 	return t
 }
 
@@ -32,7 +36,7 @@ func NewTimestamp(twampTimestamp TwampTimestamp) time.Time {
 */
 func (t *TwampTimestamp) GetTime() time.Time {
 	// convert epoch from 1900 back to 1970
-	return time.Unix(int64(t.Integer), int64(t.Fraction)).AddDate(-70, 0, 0)
+	return time.Unix(int64(t.Integer), int64(t.Fraction)).Add(-1 * epochOffset)
 }
 
 func (t *TwampTimestamp) String() string {
