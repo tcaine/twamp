@@ -3,8 +3,11 @@ package twamp
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"io"
 	"log"
 	"net"
+	"syscall"
 	"time"
 )
 
@@ -15,6 +18,31 @@ type TwampConnection struct {
 
 func NewTwampConnection(conn net.Conn) *TwampConnection {
 	return &TwampConnection{conn: conn, timeout: 5}
+}
+
+func isNetConnClosedErr(err error) bool {
+	switch {
+	case
+		errors.Is(err, net.ErrClosed),
+		errors.Is(err, io.EOF),
+		errors.Is(err, syscall.EPIPE):
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *TwampConnection) TestConnection() error {
+	oneByte := make([]byte, 1)
+	c.conn.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+	if _, err := c.conn.Read(oneByte); err != nil {
+		if isNetConnClosedErr(err) {
+			c.conn.Close()
+			return errors.New("TCP connection closed")
+		}
+	}
+	c.conn.SetReadDeadline(time.Time{})
+	return nil
 }
 
 func (c *TwampConnection) GetConnection() net.Conn {

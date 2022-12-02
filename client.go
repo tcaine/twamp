@@ -9,11 +9,6 @@ import (
 )
 
 /*
-	Default TCP port for remote TWAMP server.
-*/
-const TwampControlPort int = 862
-
-/*
 	Security modes for TWAMP session.
 */
 const (

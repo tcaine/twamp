@@ -61,6 +61,10 @@ func main() {
 	}
 	defer session.Stop()
 
+	if err := session.TestConnection(); err != nil {
+		log.Fatalf("Unable to initialize TWAMP TCP session: %s\n", err)
+	}
+
 	test, err := session.CreateTest()
 	if err != nil {
 		log.Fatal(err)
@@ -68,12 +72,26 @@ func main() {
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
+	done := make(chan bool, 1)
+	wrapup := make(chan bool, 1)
 
 	switch *mode {
 	case "json":
-		results := test.RunX(*count, nil, interval, sig)
-		test.FormatJSON(results)
+		go func() {
+			results := test.RunX(*count, nil, interval, done)
+			test.FormatJSON(results)
+			close(wrapup)
+		}()
 	case "ping":
-		test.Ping(*count, interval, sig)
+		go func() {
+			test.Ping(*count, interval, done)
+			close(wrapup)
+		}()
+	}
+	select {
+	case <-sig:
+		done<-true // Signal tester that we're stopping
+		<-wrapup   // Wait for test results
+	case <-wrapup:
 	}
 }

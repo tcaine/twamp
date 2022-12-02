@@ -41,6 +41,10 @@ func (s *TwampSession) GetConnection() net.Conn {
 	return s.conn.GetConnection()
 }
 
+func (s *TwampSession) TestConnection() error {
+	return s.conn.TestConnection()
+}
+
 func (s *TwampSession) GetConfig() TwampSessionConfig {
 	return s.config
 }
@@ -76,7 +80,7 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 		return nil, err
 	}
 
-	test := &TwampTest{session: s}
+	test := &TwampTest{session: s, results: make(map[int]*TwampResults)}
 	remoteAddr, err := test.RemoteAddr()
 	if err != nil {
 		return nil, err

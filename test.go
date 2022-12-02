@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 	"unsafe"
-	"os"
 )
 
 /*
@@ -23,6 +22,7 @@ type TwampTest struct {
 	session *TwampSession
 	conn    *net.UDPConn
 	seq     uint32
+	results map[int]*TwampResults
 }
 
 /*
@@ -235,7 +235,7 @@ func (t *TwampTest) ReturnJSON(r *PingResults) string {
 	return fmt.Sprintf("%s\n", string(doc))
 }
 
-func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) *PingResults {
+func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) *PingResults {
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -268,25 +268,34 @@ func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) 
 
 	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
 
-	nextRun := time.Now()
+	tcpTestTicker := time.NewTicker(1 * time.Second)
+	defer tcpTestTicker.Stop()
+	var ticker *time.Ticker
+	if !isRapid {
+		ticker = time.NewTicker(interval)
+	} else {
+		// Rapid should run as fast as it can, but in practice having a ticker tick every nanosecond is
+		// sufficient, as the code doesn't run fast enough for there to be a difference
+		ticker = time.NewTicker(1 * time.Nanosecond)
+	}
+	defer ticker.Stop()
+	firstTick := make(chan bool, 1)
+	firstTick <- true
 	iterations := 0
 	for continuous || iterations < count {
-		currentTime := time.Now()
-		// Wait until next scheduled run
-		if currentTime.Before(nextRun) {
-			// Check if we have received an os interrupt while we wait
-			select {
-			case <-sig:
+		// Wait until next scheduled run or done signal
+		select {
+		case <-done:
+			return Results
+		case <-tcpTestTicker.C:
+			if err := t.GetSession().TestConnection(); err != nil {
+				log.Printf("session connection error: %s\n", err)
 				return Results
-			case <-time.After(nextRun.Sub(currentTime)):
 			}
+			continue
+		case <-firstTick:
+		case <-ticker.C:
 		}
-		if isRapid {
-			nextRun = time.Now()
-		} else {
-			nextRun = time.Now().Add(interval)
-		}
-
 		Stats.Transmitted++
 		results, err := t.Run()
 		if err != nil {
@@ -332,7 +341,7 @@ func (t *TwampTest) Ping(count int, interval time.Duration, sig chan os.Signal) 
 	return Results
 }
 
-func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, sig chan os.Signal) *PingResults {
+func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) *PingResults {
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -349,24 +358,33 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 		Stats.StdDev = Results.stdDev(Stats.Avg)
 	}()
 
-
-	nextRun := time.Now()
+	tcpTestTicker := time.NewTicker(1 * time.Second)
+	defer tcpTestTicker.Stop()
+	var ticker *time.Ticker
+	if !isRapid {
+		ticker = time.NewTicker(interval)
+	} else {
+		// Rapid should run as fast as it can, but in practice having a ticker tick every nanosecond is
+		// sufficient, as the code doesn't run fast enough for there to be a difference
+		ticker = time.NewTicker(1 * time.Nanosecond)
+	}
+	defer ticker.Stop()
+	firstTick := make(chan bool, 1)
+	firstTick <- true
 	iterations := 0
 	for continuous || iterations < count {
-		currentTime := time.Now()
-		// Wait until next scheduled run
-		if currentTime.Before(nextRun) {
-			// Check if we have received an os interrupt while we wait
-			select {
-			case <-sig:
+		// Wait until next scheduled run or done signal
+		select {
+		case <-done:
+			return Results
+		case <-tcpTestTicker.C:
+			if err := t.GetSession().TestConnection(); err != nil {
+				log.Printf("session connection error: %s\n", err)
 				return Results
-			case <-time.After(nextRun.Sub(currentTime)):
 			}
-		}
-		if isRapid {
-			nextRun = time.Now()
-		} else {
-			nextRun = time.Now().Add(interval)
+			continue
+		case <-firstTick:
+		case <-ticker.C:
 		}
 
 		Stats.Transmitted++
