@@ -235,7 +235,7 @@ func (t *TwampTest) ReturnJSON(r *PingResults) string {
 	return fmt.Sprintf("%s\n", string(doc))
 }
 
-func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) *PingResults {
+func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*PingResults, error) {
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -286,11 +286,10 @@ func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) *P
 		// Wait until next scheduled run or done signal
 		select {
 		case <-done:
-			return Results
+			return Results, nil
 		case <-tcpTestTicker.C:
 			if err := t.GetSession().TestConnection(); err != nil {
-				log.Printf("session connection error: %s\n", err)
-				return Results
+				return Results, err
 			}
 			continue
 		case <-firstTick:
@@ -338,10 +337,10 @@ func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) *P
 		fmt.Printf("\n")
 	}
 
-	return Results
+	return Results, nil
 }
 
-func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) *PingResults {
+func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) (*PingResults, error) {
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -376,11 +375,10 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 		// Wait until next scheduled run or done signal
 		select {
 		case <-done:
-			return Results
+			return Results, nil
 		case <-tcpTestTicker.C:
 			if err := t.GetSession().TestConnection(); err != nil {
-				log.Printf("session connection error: %s\n", err)
-				return Results
+				return Results, err
 			}
 			continue
 		case <-firstTick:
@@ -413,5 +411,5 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 		iterations += 1
 	}
 
-	return Results
+	return Results, nil
 }

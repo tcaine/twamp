@@ -78,13 +78,19 @@ func main() {
 	switch *mode {
 	case "json":
 		go func() {
-			results := test.RunX(*count, nil, interval, done)
+			results, err := test.RunX(*count, nil, interval, done)
+			if err != nil {
+				log.Printf("error running test: %s\n", err)
+			}
 			test.FormatJSON(results)
 			close(wrapup)
 		}()
 	case "ping":
 		go func() {
-			test.Ping(*count, interval, done)
+			_, err := test.Ping(*count, interval, done)
+			if err != nil {
+				log.Printf("error running test: %s\n", err)
+			}
 			close(wrapup)
 		}()
 	}
