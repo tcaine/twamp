@@ -38,7 +38,7 @@ func (c *TwampConnection) TestConnection() error {
 	if _, err := c.conn.Read(oneByte); err != nil {
 		if isNetConnClosedErr(err) {
 			c.conn.Close()
-			return errors.New("TCP connection closed")
+			return err
 		}
 	}
 	c.conn.SetReadDeadline(time.Time{})
