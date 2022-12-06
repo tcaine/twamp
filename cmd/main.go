@@ -80,7 +80,7 @@ func main() {
 		go func() {
 			results, err := test.RunX(*count, nil, interval, done)
 			if err != nil {
-				log.Printf("error running test: %s\n", err)
+				log.Println(err)
 			}
 			test.FormatJSON(results)
 			close(wrapup)
@@ -89,7 +89,7 @@ func main() {
 		go func() {
 			_, err := test.Ping(*count, interval, done)
 			if err != nil {
-				log.Printf("error running test: %s\n", err)
+				log.Println(err)
 			}
 			close(wrapup)
 		}()

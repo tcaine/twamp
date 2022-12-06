@@ -4,12 +4,21 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"syscall"
 	"time"
 )
+
+type TwampConnectionError struct{
+	origErr error
+}
+
+func (e *TwampConnectionError) Error() string {
+	return fmt.Sprintf("TWAMP Connection Lost: %s", e.origErr)
+}
 
 type TwampConnection struct {
 	conn    net.Conn
@@ -38,7 +47,7 @@ func (c *TwampConnection) TestConnection() error {
 	if _, err := c.conn.Read(oneByte); err != nil {
 		if isNetConnClosedErr(err) {
 			c.conn.Close()
-			return err
+			return &TwampConnectionError{origErr: err}
 		}
 	}
 	c.conn.SetReadDeadline(time.Time{})

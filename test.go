@@ -281,6 +281,7 @@ func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*
 	defer ticker.Stop()
 	firstTick := make(chan bool, 1)
 	firstTick <- true
+	tcpError := make(chan error, 1)
 	iterations := 0
 	for continuous || iterations < count {
 		// Wait until next scheduled run or done signal
@@ -288,10 +289,14 @@ func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*
 		case <-done:
 			return Results, nil
 		case <-tcpTestTicker.C:
-			if err := t.GetSession().TestConnection(); err != nil {
-				return Results, err
-			}
+			go func() {
+				if err := t.GetSession().TestConnection(); err != nil {
+					tcpError <- err
+				}
+			}()
 			continue
+		case err := <- tcpError:
+			return Results, err
 		case <-firstTick:
 		case <-ticker.C:
 		}
@@ -370,6 +375,7 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 	defer ticker.Stop()
 	firstTick := make(chan bool, 1)
 	firstTick <- true
+	tcpError := make(chan error, 1)
 	iterations := 0
 	for continuous || iterations < count {
 		// Wait until next scheduled run or done signal
@@ -377,10 +383,14 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 		case <-done:
 			return Results, nil
 		case <-tcpTestTicker.C:
-			if err := t.GetSession().TestConnection(); err != nil {
-				return Results, err
-			}
+			go func() {
+				if err := t.GetSession().TestConnection(); err != nil {
+					tcpError <- err
+				}
+			}()
 			continue
+		case err := <- tcpError:
+			return Results, err
 		case <-firstTick:
 		case <-ticker.C:
 		}
