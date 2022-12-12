@@ -117,7 +117,7 @@ type MeasurementPacket struct {
 	//Padding []byte
 }
 
-func (t *TwampTest) dispatch() {
+func (t *TwampTest) sendTestMessageWithMutex() {
 	paddingSize := t.GetSession().config.Padding
 	t.mutex.Lock()
 	senderSeqNum := t.seq
@@ -126,7 +126,7 @@ func (t *TwampTest) dispatch() {
 		SenderPaddingSize: paddingSize,
 	}
 	t.results[senderSeqNum] = r
-	size, ttl, timestamp := t.ssendTestMessage(true)
+	size, ttl, timestamp := t.sendTestMessage(true)
 	r.SenderSize = size
 	r.SenderTTL = byte(ttl)
 	r.SenderTimestamp = timestamp
@@ -169,11 +169,11 @@ func (t *TwampTest) runTest(count int, interval time.Duration, done <-chan bool,
 			return
 		case <-firstTick:
 			*numTransmitted++
-			t.dispatch()
+			t.sendTestMessageWithMutex()
 		case <-ticker.C:
 			if continuous || *numTransmitted < count {
 				*numTransmitted++
-				t.dispatch()
+				t.sendTestMessageWithMutex()
 			}
 		}
 	}
@@ -246,10 +246,6 @@ func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool) {
 	}
 }
 
-func (t *TwampTest) SendTest() int {
-	return t.sendTestMessage(true)
-}
-
 /*
 Read a single reply and return it as a *TwampResults
 */
@@ -297,15 +293,16 @@ func (t *TwampTest) readReply(size int) (*TwampResults, error) {
 /*
 Run a single TWAMP test and return a pointer to the TwampResults.
 */
-func (t *TwampTest) Run() (*TwampResults, error) {
+func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	senderSeqNum := t.seq
-	size := t.SendTest()
+	size, _, _ := t.sendTestMessage(true)
+	t.seq++
 	r, err := t.readReply(size)
 	if err != nil {
 		return nil, err
 	}
 	if senderSeqNum > r.SenderSeqNum {
-		// Likely just received a packet that has timed out. Read until we are up to date
+		// Likely just received a packet that has timed out or a duplicate. Read until we are up to date
 		for senderSeqNum > r.SenderSeqNum {
 			r, err = t.readReply(size)
 			if err != nil {
@@ -319,7 +316,7 @@ func (t *TwampTest) Run() (*TwampResults, error) {
 	return r, nil
 }
 
-func (t *TwampTest) ssendTestMessage(padZero bool) (int, byte, time.Time) {
+func (t *TwampTest) sendTestMessage(padZero bool) (int, byte, time.Time) {
 	timestamp := time.Now()
 	ttl := byte(87)
 	packetHeader := MeasurementPacket{
@@ -366,54 +363,6 @@ func (t *TwampTest) ssendTestMessage(padZero bool) (int, byte, time.Time) {
 
 	t.GetConnection().Write(pdu)
 	return totalSize, ttl, timestamp
-}
-
-func (t *TwampTest) sendTestMessage(use_all_zeroes bool) int {
-	packetHeader := MeasurementPacket{
-		Sequence:            t.seq,
-		Timestamp:           *NewTwampTimestamp(time.Now()),
-		ErrorEstimate:       0x0101,
-		MBZ:                 0x0000,
-		ReceiveTimeStamp:    TwampTimestamp{},
-		SenderSequence:      0,
-		SenderTimeStamp:     TwampTimestamp{},
-		SenderErrorEstimate: 0x0000,
-		Mbz:                 0x0000,
-		SenderTtl:           87,
-	}
-
-	// seed psuedo-random number generator if requested
-	if !use_all_zeroes {
-		rand.NewSource(int64(time.Now().Unix()))
-	}
-
-	paddingSize := t.GetSession().config.Padding
-	padding := make([]byte, paddingSize, paddingSize)
-
-	for x := 0; x < paddingSize; x++ {
-		if use_all_zeroes {
-			padding[x] = 0
-		} else {
-			padding[x] = byte(rand.Intn(255))
-		}
-	}
-
-	var binaryBuffer bytes.Buffer
-	err := binary.Write(&binaryBuffer, binary.BigEndian, packetHeader)
-	if err != nil {
-		log.Fatalf("Failed to serialize measurement package. %v", err)
-	}
-
-	headerBytes := binaryBuffer.Bytes()
-	headerSize := binaryBuffer.Len()
-	totalSize := headerSize+paddingSize
-	var pdu []byte = make([]byte, totalSize)
-	copy(pdu[0:], headerBytes)
-	copy(pdu[headerSize:], padding)
-
-	t.GetConnection().Write(pdu)
-	t.seq++
-	return totalSize
 }
 
 func (t *TwampTest) FormatJSON(r *PingResults) {
@@ -477,7 +426,7 @@ func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*
 
 	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
 
-	pingResults, err = t.RunX(count, t.printPingReply, interval, done)
+	pingResults, err = t.RunMultiple(count, t.printPingReply, interval, done)
 	return pingResults, err
 }
 
@@ -537,8 +486,9 @@ func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error)
 		default:
 		}
 		stats.Transmitted++
-		// TODO ignore duplicate responses
-		twampResults, err := t.Run()
+		// TODO count duplicates and display at end -- requires rewrite of sending method to use
+		// the same or similar method as RunMultiple
+		twampResults, err := t.RunSingle()
 		if err != nil {
 			// TODO Do we need error logging here? I guess not because dot represents the sort error message here but should be double checked.
 			fmt.Printf(".")
@@ -567,7 +517,7 @@ func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error)
 	return pingResults, nil
 }
 
-func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) (*PingResults, error) {
+func (t *TwampTest) RunMultiple(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) (*PingResults, error) {
 	stats := &PingResultStats{}
 	pingResults := &PingResults{Stat: stats}
 	var totalRTT time.Duration = 0
@@ -584,7 +534,7 @@ func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval
 	// make sure that we have a snapshot of the reply received, in case
 	// we get a duplicate reply that gets processed before we have a
 	// chance to process the last reply, as the underlying map that
-	// dispatches requests uses the sequence number as an index and thus
+	// sends test requests uses the sequence number as an index and thus
 	// we might flag a response as a duplicate before we have a chance
 	// to handle the previous one in the loop
 	replyChan := make(chan TwampResults, 64)
