@@ -46,6 +46,7 @@ type PingResultStats struct {
 	Transmitted int           `json:"tx"`
 	Received    int           `json:"rx"`
 	Loss        float64       `json:"loss"`
+	Duplicates  int           `json:"dup"`
 }
 
 type PingResults struct {

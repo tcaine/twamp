@@ -408,10 +408,15 @@ func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*
 		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		stats.StdDev = pingResults.stdDev(stats.Avg)
 
+		duplicates := ""
+		if stats.Duplicates > 0 {
+			duplicates = fmt.Sprintf(" +%d duplicates,", stats.Duplicates)
+		}
 		fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
-		fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
+		fmt.Printf("%d packets transmitted, %d packets received,%s %0.1f%% packet loss\n",
 			stats.Transmitted,
 			stats.Received,
+			duplicates,
 			stats.Loss)
 		fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
 			(float64(stats.Min) / float64(time.Millisecond)),
@@ -557,6 +562,8 @@ func (t *TwampTest) RunMultiple(count int, callback TwampTestCallbackFunction, i
 			}
 			if !twampResults.IsDuplicate {
 				stats.Received++
+			} else {
+				stats.Duplicates++
 			}
 			if stats.Received == 1 {
 				stats.Min = twampResults.GetRTT()
