@@ -82,7 +82,7 @@ func main() {
 	switch *mode {
 	case "json":
 		go func() {
-			results, err := test.RunY(*count, nil, interval, done)
+			results, err := test.RunX(*count, nil, interval, done)
 			if err != nil {
 				log.Println(err)
 			}
@@ -95,7 +95,7 @@ func main() {
 			if *rapid {
 				_, err = test.PingRapid(*count, done)
 			} else {
-				_, err = test.PingZ(*count, interval, done)
+				_, err = test.Ping(*count, interval, done)
 			}
 			if err != nil {
 				log.Println(err)

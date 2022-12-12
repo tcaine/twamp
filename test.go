@@ -295,7 +295,7 @@ func (t *TwampTest) readReply(size int) (*TwampResults, error) {
 }
 
 /*
-Run a TWAMP test and return a pointer to the TwampResults.
+Run a single TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) Run() (*TwampResults, error) {
 	senderSeqNum := t.seq
@@ -448,7 +448,7 @@ func (t *TwampTest) printPingReply(twampResults *TwampResults) {
 	)
 }
 
-func (t *TwampTest) PingZ(count int, interval time.Duration, done <-chan bool) (*PingResults, error) {
+func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*PingResults, error) {
 	var totalRTT time.Duration = 0
 	var pingResults *PingResults
 	var err error
@@ -477,203 +477,8 @@ func (t *TwampTest) PingZ(count int, interval time.Duration, done <-chan bool) (
 
 	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
 
-	pingResults, err = t.RunY(count, t.printPingReply, interval, done)
+	pingResults, err = t.RunX(count, t.printPingReply, interval, done)
 	return pingResults, err
-}
-
-func (t *TwampTest) PingY(count int, interval time.Duration, done <-chan bool) (*PingResults, error) {
-	stats := &PingResultStats{}
-	pingResults := &PingResults{Stat: stats}
-	var totalRTT time.Duration = 0
-
-	// Calculate summaries upon returning
-	defer func() {
-		stats.Avg = time.Duration(int64(totalRTT) / int64(stats.Transmitted))
-		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
-		stats.StdDev = pingResults.stdDev(stats.Avg)
-
-		fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
-		fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
-			stats.Transmitted,
-			stats.Received,
-			stats.Loss)
-		fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
-			(float64(stats.Min) / float64(time.Millisecond)),
-			(float64(stats.Avg) / float64(time.Millisecond)),
-			(float64(stats.Max) / float64(time.Millisecond)),
-			(float64(stats.StdDev) / float64(time.Millisecond)),
-		)
-	}()
-
-	// TODO what is this magic 14 constant? Give it a name at least
-	packetSize := 14 + t.GetSession().GetConfig().Padding
-
-	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
-
-	replyChan := make(chan TwampResults, 64)
-	receivedEverything := false
-
-	// Run a TWAMP test count times, yield results to replyChan
-	go func() {
-		t.runTest(count, interval, done, &stats.Transmitted, replyChan)
-	}()
-
-	// Run until done signal or we've received everything/timed out
-	for !receivedEverything {
-		select {
-		case <-done:
-			return pingResults, nil
-		case twampResults, ok := <-replyChan:
-			if !ok {
-				// Reply channel has been closed
-				return pingResults, nil
-			}
-			duplicateNotice := ""
-			if !twampResults.IsDuplicate {
-				stats.Received++
-			} else {
-				duplicateNotice = " (DUP!)"
-			}
-			if stats.Received == 1 {
-				stats.Min = twampResults.GetRTT()
-				stats.Max = twampResults.GetRTT()
-			}
-			if stats.Min > twampResults.GetRTT() {
-				stats.Min = twampResults.GetRTT()
-			}
-			if stats.Max < twampResults.GetRTT() {
-				stats.Max = twampResults.GetRTT()
-			}
-
-			totalRTT += twampResults.GetRTT()
-			pingResults.Results = append(pingResults.Results, &twampResults)
-
-			fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms%s\n",
-				packetSize,
-				t.GetRemoteTestHost(),
-				twampResults.SenderSeqNum,
-				twampResults.SenderTTL,
-				(float64(twampResults.GetRTT()) / float64(time.Millisecond)),
-				duplicateNotice,
-			)
-
-			if stats.Transmitted == stats.Received && stats.Transmitted == count {
-				receivedEverything = true
-			}
-		}
-	}
-
-	return pingResults, nil
-}
-
-func (t *TwampTest) PingX(count int, interval time.Duration, done <-chan bool) (*PingResults, error) {
-	continuous := false
-	if count == 0 {
-		continuous = true
-	}
-	stats := &PingResultStats{}
-	pingResults := &PingResults{Stat: stats}
-	var totalRTT time.Duration = 0
-
-	// Calculate summaries upon returning
-	defer func() {
-		stats.Avg = time.Duration(int64(totalRTT) / int64(stats.Transmitted))
-		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
-		stats.StdDev = pingResults.stdDev(stats.Avg)
-
-		fmt.Printf("--- %s twamp ping statistics ---\n", t.GetRemoteTestHost())
-		fmt.Printf("%d packets transmitted, %d packets received, %0.1f%% packet loss\n",
-			stats.Transmitted,
-			stats.Received,
-			stats.Loss)
-		fmt.Printf("round-trip min/avg/max/stddev = %0.3f/%0.3f/%0.3f/%0.3f ms\n",
-			(float64(stats.Min) / float64(time.Millisecond)),
-			(float64(stats.Avg) / float64(time.Millisecond)),
-			(float64(stats.Max) / float64(time.Millisecond)),
-			(float64(stats.StdDev) / float64(time.Millisecond)),
-		)
-	}()
-
-	packetSize := 14 + t.GetSession().GetConfig().Padding
-
-	fmt.Printf("TWAMP PING %s: %d data bytes\n", t.GetRemoteTestHost(), packetSize)
-
-	tcpTestTicker := time.NewTicker(1 * time.Second)
-	defer tcpTestTicker.Stop()
-	var ticker *time.Ticker
-	ticker = time.NewTicker(interval)
-	firstTick := make(chan bool, 1)
-	firstTick <- true
-	tcpError := make(chan error, 1)
-	replyChan := make(chan TwampResults, 64)
-	inProgress := true
-	receivedEverything := false
-	go func() {
-		t.readReplies(replyChan, done)
-	}()
-	for continuous || inProgress || !receivedEverything {
-		// Wait until next scheduled run or done signal
-		select {
-		case <-done:
-			return pingResults, nil
-		case <-tcpTestTicker.C:
-			go func() {
-				if err := t.GetSession().TestConnection(); err != nil {
-					tcpError <- err
-				}
-			}()
-		case err := <- tcpError:
-			return pingResults, err
-		case <-firstTick:
-			stats.Transmitted++
-			t.dispatch()
-		case <-ticker.C:
-			if continuous || stats.Transmitted < count {
-				stats.Transmitted++
-				t.dispatch()
-				continue
-			}
-			// We've iterated over everything. Are we waiting for a timeout
-			// or have we not triggered that yet?
-			if inProgress {
-				ticker = time.NewTicker(time.Duration(t.GetTimeout()) * time.Second)
-				inProgress = false
-			} else {
-				receivedEverything = true
-				ticker.Stop()
-			}
-		case twampResults := <-replyChan:
-			stats.Received++
-			if stats.Received == 1 {
-				stats.Min = twampResults.GetRTT()
-				stats.Max = twampResults.GetRTT()
-			}
-			if stats.Min > twampResults.GetRTT() {
-				stats.Min = twampResults.GetRTT()
-			}
-			if stats.Max < twampResults.GetRTT() {
-				stats.Max = twampResults.GetRTT()
-			}
-
-			totalRTT += twampResults.GetRTT()
-			pingResults.Results = append(pingResults.Results, &twampResults)
-
-			fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms\n",
-				packetSize,
-				t.GetRemoteTestHost(),
-				twampResults.SenderSeqNum,
-				twampResults.SenderTTL,
-				(float64(twampResults.GetRTT()) / float64(time.Millisecond)),
-			)
-
-			if stats.Transmitted == stats.Received && stats.Transmitted == count {
-				receivedEverything = true
-				inProgress = false
-			}
-		}
-	}
-
-	return pingResults, nil
 }
 
 // Use a blocking ping, pinging as soon as a reply or timeout is hit.
@@ -732,6 +537,7 @@ func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error)
 		default:
 		}
 		stats.Transmitted++
+		// TODO ignore duplicate responses
 		twampResults, err := t.Run()
 		if err != nil {
 			// TODO Do we need error logging here? I guess not because dot represents the sort error message here but should be double checked.
@@ -762,85 +568,6 @@ func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error)
 }
 
 func (t *TwampTest) RunX(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) (*PingResults, error) {
-	continuous := false
-	if count == 0 {
-		continuous = true
-	}
-	Stats := &PingResultStats{}
-	Results := &PingResults{Stat: Stats}
-	isRapid := interval == time.Duration(0)
-	var totalRTT time.Duration = 0
-
-	// Calculate totals upon returning
-	defer func() {
-		Stats.Avg = time.Duration(int64(totalRTT) / int64(Stats.Transmitted))
-		Stats.Loss = float64(float64(Stats.Transmitted-Stats.Received)/float64(Stats.Transmitted)) * 100.0
-		Stats.StdDev = Results.stdDev(Stats.Avg)
-	}()
-
-	tcpTestTicker := time.NewTicker(1 * time.Second)
-	defer tcpTestTicker.Stop()
-	var ticker *time.Ticker
-	if !isRapid {
-		ticker = time.NewTicker(interval)
-	} else {
-		// Rapid should run as fast as it can, but in practice having a ticker tick every nanosecond is
-		// sufficient, as the code doesn't run fast enough for there to be a difference
-		ticker = time.NewTicker(1 * time.Nanosecond)
-	}
-	defer ticker.Stop()
-	firstTick := make(chan bool, 1)
-	firstTick <- true
-	tcpError := make(chan error, 1)
-	iterations := 0
-	for continuous || iterations < count {
-		// Wait until next scheduled run or done signal
-		select {
-		case <-done:
-			return Results, nil
-		case <-tcpTestTicker.C:
-			go func() {
-				if err := t.GetSession().TestConnection(); err != nil {
-					tcpError <- err
-				}
-			}()
-			continue
-		case err := <- tcpError:
-			return Results, err
-		case <-firstTick:
-		case <-ticker.C:
-		}
-
-		Stats.Transmitted++
-		results, err := t.Run()
-		if err != nil {
-			//log.Printf("%v\n", err)
-		} else {
-			if iterations == 0 {
-				Stats.Min = results.GetRTT()
-				Stats.Max = results.GetRTT()
-			}
-			if Stats.Min > results.GetRTT() {
-				Stats.Min = results.GetRTT()
-			}
-			if Stats.Max < results.GetRTT() {
-				Stats.Max = results.GetRTT()
-			}
-
-			totalRTT += results.GetRTT()
-			Stats.Received++
-			Results.Results = append(Results.Results, results)
-			if callback != nil {
-				callback(results)
-			}
-		}
-		iterations += 1
-	}
-
-	return Results, nil
-}
-
-func (t *TwampTest) RunY(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) (*PingResults, error) {
 	stats := &PingResultStats{}
 	pingResults := &PingResults{Stat: stats}
 	var totalRTT time.Duration = 0
