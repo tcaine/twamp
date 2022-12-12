@@ -80,7 +80,7 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 		return nil, err
 	}
 
-	test := &TwampTest{session: s, results: make(map[int]*TwampResults)}
+	test := &TwampTest{session: s, results: make(map[uint32]*TwampResults)}
 	remoteAddr, err := test.RemoteAddr()
 	if err != nil {
 		return nil, err

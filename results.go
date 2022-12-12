@@ -20,6 +20,8 @@ type TwampResults struct {
 	SenderTTL           byte      `json:"senderTTL"`
 	FinishedTimestamp   time.Time `json:"finishedTimestamp"`
 	SenderSize          int       `json:"senderSize"`
+	SenderPaddingSize   int       `json:"senderPaddingSize"`
+	IsDuplicate         bool      `json:"isDuplicate"`
 }
 
 func (r *TwampResults) GetWait() time.Duration {

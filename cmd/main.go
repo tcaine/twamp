@@ -14,10 +14,10 @@ import (
 func main() {
 	intervalFlag := flag.Float64("interval", 1, "Delay between TWAMP-test requests (seconds). For sub-second intervals, use floating points")
 	count := flag.Int("count", 5, "Number of requests to send (0..2000000000 packets, 0 being continuous)")
-	rapid := flag.Bool("rapid", false, "Send requests as rapidly as possible (default count of 5, ignores interval)")
+	rapid := flag.Bool("rapid", false, "Send requests as rapidly as possible (default count of 5, ignores interval and sends next packet as soon as a response or timeout is received)")
 	size := flag.Int("size", 42, "Size of request packets (0..65468 bytes)")
 	tos := flag.Int("tos", 0, "IP type-of-service value (0..255)")
-	timeout := flag.Int("timeout", 1, "Maximum wait time for a packet response (seconds)")
+	timeout := flag.Int("timeout", 1, "Maximum wait time for a response for the last packet (seconds). If rapid is set, this is a timeout for every packet")
 	port := flag.Int("port", 6666, "UDP port to send request packets")
 	remotePort := flag.Int("remote-port", 862, "Remote host port")
 	mode := flag.String("mode", "ping", "Mode of operation (ping, json)")
@@ -75,10 +75,14 @@ func main() {
 	done := make(chan bool, 1)
 	wrapup := make(chan bool, 1)
 
+	if *mode != "json" && *mode != "ping" {
+		log.Fatal("Invalid run mode. Supported modes are 'json' and 'ping'")
+	}
+
 	switch *mode {
 	case "json":
 		go func() {
-			results, err := test.RunX(*count, nil, interval, done)
+			results, err := test.RunY(*count, nil, interval, done)
 			if err != nil {
 				log.Println(err)
 			}
@@ -87,7 +91,12 @@ func main() {
 		}()
 	case "ping":
 		go func() {
-			_, err := test.Ping(*count, interval, done)
+			var err error
+			if *rapid {
+				_, err = test.PingRapid(*count, done)
+			} else {
+				_, err = test.PingZ(*count, interval, done)
+			}
 			if err != nil {
 				log.Println(err)
 			}
@@ -96,7 +105,7 @@ func main() {
 	}
 	select {
 	case <-sig:
-		done<-true // Signal tester that we're stopping
+		close(done)
 		<-wrapup   // Wait for test results
 	case <-wrapup:
 	}
