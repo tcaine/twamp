@@ -82,7 +82,7 @@ func main() {
 	switch *mode {
 	case "json":
 		go func() {
-			results, err := test.RunX(*count, nil, interval, done)
+			results, err := test.RunMultiple(*count, nil, interval, done)
 			if err != nil {
 				log.Println(err)
 			}
