@@ -126,7 +126,7 @@ func (t *TwampTest) sendTestMessageWithMutex() {
 		SenderPaddingSize: paddingSize,
 	}
 	t.results[t.seq] = r
-	size, ttl, timestamp := t.sendTestMessage(true)
+	size, ttl, timestamp := t.putMessageOnWire(true)
 	r.SenderSize = size
 	r.SenderTTL = byte(ttl)
 	r.SenderTimestamp = timestamp
@@ -295,7 +295,7 @@ Run a single TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	senderSeqNum := t.seq
-	size, _, _ := t.sendTestMessage(true)
+	size, _, _ := t.putMessageOnWire(true)
 	t.seq++
 	r, err := t.readReply(size)
 	if err != nil {
@@ -316,7 +316,7 @@ func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	return r, nil
 }
 
-func (t *TwampTest) sendTestMessage(padZero bool) (int, byte, time.Time) {
+func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time) {
 	timestamp := time.Now()
 	ttl := byte(87)
 	packetHeader := MeasurementPacket{
