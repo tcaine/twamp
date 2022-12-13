@@ -43,10 +43,10 @@ type PingResultStats struct {
 	Max         time.Duration `json:"max"`
 	Avg         time.Duration `json:"avg"`
 	StdDev      time.Duration `json:"stddev"`
-	Transmitted int           `json:"tx"`
-	Received    int           `json:"rx"`
+	Transmitted uint64        `json:"tx"`
+	Received    uint64        `json:"rx"`
 	Loss        float64       `json:"loss"`
-	Duplicates  int           `json:"dup"`
+	Duplicates  uint64        `json:"dup"`
 }
 
 type PingResults struct {

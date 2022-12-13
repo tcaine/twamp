@@ -11,9 +11,11 @@ import (
 	"github.com/orn1983/twamp-client"
 )
 
+const maxuint64 = ^uint(0)
+
 func main() {
 	intervalFlag := flag.Float64("interval", 1, "Delay between TWAMP-test requests (seconds). For sub-second intervals, use floating points")
-	count := flag.Int("count", 5, "Number of requests to send (0..2000000000 packets, 0 being continuous)")
+	count := flag.Uint64("count", 5, fmt.Sprintf("Number of requests to send (0..%d packets, 0 being continuous)", maxuint64))
 	rapid := flag.Bool("rapid", false, "Send requests as rapidly as possible (default count of 5, ignores interval and sends next packet as soon as a response or timeout is received)")
 	size := flag.Int("size", 42, "Size of request packets (0..65468 bytes)")
 	tos := flag.Int("tos", 0, "IP type-of-service value (0..255)")

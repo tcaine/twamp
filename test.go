@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"sync/atomic"
 	"strings"
 	"time"
 	"unsafe"
@@ -120,12 +121,11 @@ type MeasurementPacket struct {
 func (t *TwampTest) sendTestMessageWithMutex() {
 	paddingSize := t.GetSession().config.Padding
 	t.mutex.Lock()
-	senderSeqNum := t.seq
 	r := &TwampResults{
-		SenderSeqNum:      senderSeqNum,
+		SenderSeqNum:      t.seq,
 		SenderPaddingSize: paddingSize,
 	}
-	t.results[senderSeqNum] = r
+	t.results[t.seq] = r
 	size, ttl, timestamp := t.sendTestMessage(true)
 	r.SenderSize = size
 	r.SenderTTL = byte(ttl)
@@ -134,7 +134,7 @@ func (t *TwampTest) sendTestMessageWithMutex() {
 	t.mutex.Unlock()
 }
 
-func (t *TwampTest) runTest(count int, interval time.Duration, done <-chan bool, numTransmitted *int, replyChan chan TwampResults) {
+func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bool, numTransmitted *uint64, replyChan chan TwampResults) {
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -151,7 +151,7 @@ func (t *TwampTest) runTest(count int, interval time.Duration, done <-chan bool,
 	go func() {
 		t.readReplies(replyChan, done)
 	}()
-	for continuous || *numTransmitted < count {
+	for continuous || atomic.LoadUint64(numTransmitted) < count {
 		// Wait until we are either done (can be via signal), have a TCP error, or it
 		// is time to send a new request
 		select {
@@ -168,18 +168,17 @@ func (t *TwampTest) runTest(count int, interval time.Duration, done <-chan bool,
 			close(replyChan)
 			return
 		case <-firstTick:
-			*numTransmitted++
 			t.sendTestMessageWithMutex()
+			atomic.AddUint64(numTransmitted, 1)
 		case <-ticker.C:
-			if continuous || *numTransmitted < count {
-				*numTransmitted++
+			if continuous || atomic.LoadUint64(numTransmitted) < count {
 				t.sendTestMessageWithMutex()
+				atomic.AddUint64(numTransmitted, 1)
 			}
 		}
 	}
 	select {
-	case <- time.After(time.Second * time.Duration(t.GetTimeout())):
-		close(replyChan)
+	case <-time.After(time.Second * time.Duration(t.GetTimeout())):
 	case <-done:
 	}
 	return
@@ -241,8 +240,9 @@ func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool) {
 		r.SenderErrorEstimate = responseHeader.SenderErrorEstimate
 		r.SenderTTL = responseHeader.SenderTtl
 		r.FinishedTimestamp = finished
-		results <- *r
+		rCopy := *r
 		t.mutex.Unlock()
+		results <- rCopy
 	}
 }
 
@@ -397,14 +397,14 @@ func (t *TwampTest) printPingReply(twampResults *TwampResults) {
 	)
 }
 
-func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*PingResults, error) {
+func (t *TwampTest) Ping(count uint64, interval time.Duration, done <-chan bool) (*PingResults, error) {
 	var totalRTT time.Duration = 0
 	var pingResults *PingResults
 	var err error
 	// Calculate summaries upon returning
 	defer func() {
 		stats := pingResults.Stat
-		stats.Avg = time.Duration(int64(totalRTT) / int64(stats.Transmitted))
+		stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
 		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		stats.StdDev = pingResults.stdDev(stats.Avg)
 
@@ -438,7 +438,7 @@ func (t *TwampTest) Ping(count int, interval time.Duration, done <-chan bool) (*
 // Use a blocking ping, pinging as soon as a reply or timeout is hit.
 // TODO listen for done signal even while waiting for a reply/timeout as
 // opposed to having to check for the signal at the start of each iteration
-func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error) {
+func (t *TwampTest) PingRapid(count uint64, done <-chan bool) (*PingResults, error) {
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -449,7 +449,7 @@ func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error)
 
 	// Calculate summaries upon returning
 	defer func() {
-		stats.Avg = time.Duration(int64(totalRTT) / int64(stats.Transmitted))
+		stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
 		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		stats.StdDev = pingResults.stdDev(stats.Avg)
 
@@ -473,7 +473,7 @@ func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error)
 	tcpTestTicker := time.NewTicker(1 * time.Second)
 	defer tcpTestTicker.Stop()
 	tcpError := make(chan error, 1)
-	iterations := 0
+	var iterations uint64 = 0
 	for continuous || iterations < count {
 		// Wait until next scheduled run or done signal
 		select {
@@ -522,16 +522,18 @@ func (t *TwampTest) PingRapid(count int, done <-chan bool) (*PingResults, error)
 	return pingResults, nil
 }
 
-func (t *TwampTest) RunMultiple(count int, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) (*PingResults, error) {
+func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction, interval time.Duration, done <-chan bool) (*PingResults, error) {
 	stats := &PingResultStats{}
 	pingResults := &PingResults{Stat: stats}
 	var totalRTT time.Duration = 0
 
 	// Calculate totals upon returning
 	defer func() {
-		stats.Avg = time.Duration(int64(totalRTT) / int64(stats.Transmitted))
+		t.mutex.RLock()
+		stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
 		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		stats.StdDev = pingResults.stdDev(stats.Avg)
+		t.mutex.RUnlock()
 	}()
 
 
@@ -542,7 +544,7 @@ func (t *TwampTest) RunMultiple(count int, callback TwampTestCallbackFunction, i
 	// sends test requests uses the sequence number as an index and thus
 	// we might flag a response as a duplicate before we have a chance
 	// to handle the previous one in the loop
-	replyChan := make(chan TwampResults, 64)
+	replyChan := make(chan TwampResults, 4096)
 	receivedEverything := false
 
 	// Run a TWAMP test count times, yield results to replyChan
@@ -582,11 +584,14 @@ func (t *TwampTest) RunMultiple(count int, callback TwampTestCallbackFunction, i
 			if callback != nil {
 				callback(&twampResults)
 			}
-			if stats.Transmitted == stats.Received && stats.Transmitted == count {
+			if atomic.LoadUint64(&stats.Transmitted) == count && atomic.LoadUint64(&stats.Transmitted) == atomic.LoadUint64(&stats.Received) {
+				receivedEverything = true
+			}
+		case <-time.After(time.Duration(t.GetTimeout()) * time.Second):
+			if atomic.LoadUint64(&stats.Transmitted) == count {
 				receivedEverything = true
 			}
 		}
 	}
-
 	return pingResults, nil
 }
