@@ -41,8 +41,16 @@ func (s *TwampSession) GetConnection() net.Conn {
 	return s.conn.GetConnection()
 }
 
+func (s *TwampSession) TestConnection() error {
+	return s.conn.TestConnection()
+}
+
 func (s *TwampSession) GetConfig() TwampSessionConfig {
 	return s.config
+}
+
+func (s *TwampSession) GetTimeout() int {
+	return s.config.Timeout
 }
 
 func (s *TwampSession) Write(buf []byte) {
@@ -55,7 +63,7 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 
 	s.Write(pdu)
 
-	startAckBuffer, err := readFromSocket(s.GetConnection(), 32)
+	startAckBuffer, err := readFromSocket(s.GetConnection(), 32, s.GetTimeout())
 	if err != nil {
 		log.Printf("Cannot read: %s\n", err)
 		return nil, err
@@ -72,7 +80,7 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 		return nil, err
 	}
 
-	test := &TwampTest{session: s}
+	test := &TwampTest{session: s, results: make(map[uint32]*TwampResults)}
 	remoteAddr, err := test.RemoteAddr()
 	if err != nil {
 		return nil, err

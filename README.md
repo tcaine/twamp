@@ -30,7 +30,7 @@ TWAMP client for go
 	}
 
 	count := 2000
-	results := test.RunX(count, func(result *twamp.TwampResults) {
+	results := test.RunMultiple(count, func(result *twamp.TwampResults) {
 		fmt.Printf("%.2f  \r", float64(result.SenderSeqNum)/float64(count)*100.0)
 	})
 	if err != nil {
@@ -48,23 +48,25 @@ TWAMP client for go
 
 ```
 sigsegv:twamp tcaine$ ./twamp --help
-Usage of ./twamp:
-  -count int
-    	Number of requests to send (1..2000000000 packets) (default 5)
-  -interval int
-    	Delay between TWAMP-test requests (seconds) (default 1)
+Usage of ./bin/twamp-client:
+  -count uint
+        Number of requests to send (0..18446744073709551615 packets, 0 being continuous) (default 5)
+  -interval float
+        Delay between TWAMP-test requests (seconds). For sub-second intervals, use floating points (default 1)
   -mode string
-    	Mode of operation (ping, json) (default "ping")
+        Mode of operation (ping, json) (default "ping")
   -port int
-    	UDP port to send request packets (default 6666)
+        UDP port to send request packets (default 6666)
   -rapid
-    	Send requests rapidly (default count of 5)
+        Send requests as rapidly as possible (default count of 5, ignores interval and sends next packet as soon we have a response/timeout)
+  -remote-port int
+        Remote host port (default 862)
   -size int
-    	Size of request packets (0..65468 bytes) (default 42)
+        Size of request packets (0..65468 bytes) (default 42)
+  -timeout int
+        Maximum wait time for a response for the last packet (seconds). If rapid is set, this is a timeout for every packet (default 1)
   -tos int
-    	IP type-of-service value (0..255)
-  -wait int
-    	Maximum wait time after sending final packet (seconds) (default 1)
+        IP type-of-service value (0..255)
 ```
 
 ### Twamp Ping
@@ -72,13 +74,14 @@ Usage of ./twamp:
 ```
 sigsegv:twamp tcaine$ ./twamp 10.1.1.200
 TWAMP PING 10.1.1.200: 56 data bytes
-56 bytes from 10.1.1.200: twamp_seq=0 ttl=250 time=45.252 ms
-56 bytes from 10.1.1.200: twamp_seq=1 ttl=250 time=484.722 ms
-56 bytes from 10.1.1.200: twamp_seq=2 ttl=250 time=134.527 ms
-56 bytes from 10.1.1.200: twamp_seq=3 ttl=250 time=41.005 ms
-56 bytes from 10.1.1.200: twamp_seq=4 ttl=250 time=46.791 ms
+56 bytes from 10.1.1.200: send_seq=0 refl_seq=0 ttl=250 time=45.252 ms
+56 bytes from 10.1.1.200: send_seq=1 refl_seq=1 ttl=250 time=484.722 ms
+56 bytes from 10.1.1.200: send_seq=2 refl_seq=2 ttl=250 time=134.527 ms
+56 bytes from 10.1.1.200: send_seq=2 refl_seq=2 ttl=250 time=136.527 ms (DUP!)
+56 bytes from 10.1.1.200: send_seq=3 refl_seq=3 ttl=250 time=41.005 ms
+56 bytes from 10.1.1.200: send_seq=4 refl_seq=4 ttl=250 time=46.791 ms
 --- 10.1.1.200 twamp ping statistics ---
-5 packets transmitted, 5 packets received, 0.0% packet loss
+5 packets transmitted, 5 packets received, +1 duplicates, 0.0% packet loss
 round-trip min/avg/max/stddev = 41.005/150.459/484.722/190.907 ms
 ```
 
@@ -105,6 +108,7 @@ sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
       "avg" : 104719892,
       "min" : 29052824,
       "loss" : 0,
+      "dup" : 1,
       "max" : 155204310
    },
    "results" : [
@@ -118,7 +122,8 @@ sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
          "timestamp" : "2016-12-12T21:12:14.982780242-08:00",
          "senderSeqnum" : 0,
          "senderErrorEstimate" : 257,
-         "senderSize" : 56
+         "senderSize" : 56,
+         "isDuplicate": false
       },
       {
          "senderTimestamp" : "2016-12-12T21:12:13.523434427-08:00",
@@ -130,7 +135,8 @@ sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
          "timestamp" : "2016-12-12T21:12:15.662776644-08:00",
          "senderSeqnum" : 1,
          "senderErrorEstimate" : 257,
-         "senderSize" : 56
+         "senderSize" : 56,
+         "isDuplicate": false
       },
       {
          "senderTimestamp" : "2016-12-12T21:12:13.678401499-08:00",
@@ -142,7 +148,8 @@ sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
          "timestamp" : "2016-12-12T21:12:15.774321239-08:00",
          "senderSeqnum" : 2,
          "senderErrorEstimate" : 257,
-         "senderSize" : 56
+         "senderSize" : 56,
+         "isDuplicate": false
       },
       {
          "senderTimestamp" : "2016-12-12T21:12:13.833613447-08:00",
@@ -154,7 +161,21 @@ sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
          "timestamp" : "2016-12-12T21:12:16.454300462-08:00",
          "senderSeqnum" : 3,
          "senderErrorEstimate" : 257,
-         "senderSize" : 56
+         "senderSize" : 56,
+         "isDuplicate": false
+      },
+      {
+         "senderTimestamp" : "2016-12-12T21:12:13.833613447-08:00",
+         "finishedTimestamp" : "2016-12-12T21:12:13.863126880-08:00",
+         "seqnum" : 3,
+         "receiveTimestamp" : "2016-12-12T21:12:16.454055649-08:00",
+         "senderTTL" : 250,
+         "errorEstimate" : 1,
+         "timestamp" : "2016-12-12T21:12:16.454300462-08:00",
+         "senderSeqnum" : 3,
+         "senderErrorEstimate" : 257,
+         "senderSize" : 56,
+         "isDuplicate": true
       },
       {
          "senderTimestamp" : "2016-12-12T21:12:13.862672913-08:00",
@@ -166,7 +187,8 @@ sigsegv:twamp tcaine$ ./twamp --count=5 --mode=json 10.1.1.200 | json_pp
          "timestamp" : "2016-12-12T21:12:16.581173796-08:00",
          "senderSeqnum" : 4,
          "senderErrorEstimate" : 257,
-         "senderSize" : 56
+         "senderSize" : 56,
+         "isDuplicate": false
       }
    ]
 }

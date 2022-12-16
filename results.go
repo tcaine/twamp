@@ -20,6 +20,8 @@ type TwampResults struct {
 	SenderTTL           byte      `json:"senderTTL"`
 	FinishedTimestamp   time.Time `json:"finishedTimestamp"`
 	SenderSize          int       `json:"senderSize"`
+	SenderPaddingSize   int       `json:"senderPaddingSize"`
+	IsDuplicate         bool      `json:"isDuplicate"`
 }
 
 func (r *TwampResults) GetWait() time.Duration {
@@ -41,9 +43,10 @@ type PingResultStats struct {
 	Max         time.Duration `json:"max"`
 	Avg         time.Duration `json:"avg"`
 	StdDev      time.Duration `json:"stddev"`
-	Transmitted int           `json:"tx"`
-	Received    int           `json:"rx"`
+	Transmitted uint64        `json:"tx"`
+	Received    uint64        `json:"rx"`
 	Loss        float64       `json:"loss"`
+	Duplicates  uint64        `json:"dup"`
 }
 
 type PingResults struct {

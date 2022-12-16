@@ -2,17 +2,10 @@ package twamp
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"net"
 	"time"
 )
-
-/*
-	Default TCP port for remote TWAMP server.
-*/
-const TwampControlPort int = 862
 
 /*
 	Security modes for TWAMP session.
@@ -49,12 +42,12 @@ func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
 	// check greeting mode for errors
 	switch greeting.Mode {
 	case ModeUnspecified:
-		return nil, errors.New("The TWAMP server is not interested in communicating with you.")
+		return nil, fmt.Errorf("The TWAMP server is not interested in communicating with you.")
 	case ModeUnauthenticated:
 	case ModeAuthenticated:
-		return nil, errors.New("Authentication is not currently supported.")
+		return nil, fmt.Errorf("Authentication is not currently supported.")
 	case ModeEncypted:
-		return nil, errors.New("Encyption is not currently supported.")
+		return nil, fmt.Errorf("Encyption is not currently supported.")
 	}
 
 	// negotiate TWAMP session configuration
@@ -74,13 +67,15 @@ func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
 	return twampConnection, nil
 }
 
-func readFromSocket(reader io.Reader, size int) (bytes.Buffer, error) {
+func readFromSocket(conn net.Conn, size int, timeoutSeconds int) (bytes.Buffer, error) {
+	timeout := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
 	buf := make([]byte, size)
 	buffer := *bytes.NewBuffer(buf)
-	bytesRead, err := reader.Read(buf)
+	conn.SetReadDeadline(timeout)
+	bytesRead, err := conn.Read(buf)
 
 	if err != nil && bytesRead < size {
-		return buffer, errors.New(fmt.Sprintf("readFromSocket: expected %d bytes, got %d", size, bytesRead))
+		return buffer, fmt.Errorf(fmt.Sprintf("readFromSocket: expected %d bytes, got %d", size, bytesRead))
 	}
 
 	return buffer, err
@@ -107,15 +102,15 @@ func checkAcceptStatus(accept int, context string) error {
 	case OK:
 		return nil
 	case Failed:
-		return errors.New(fmt.Sprintf("ERROR: The ", context, " failed."))
+		return fmt.Errorf("ERROR: The %s failed.", context)
 	case InternalError:
-		return errors.New(fmt.Sprintf("ERROR: The ", context, " failed: internal error."))
+		return fmt.Errorf("ERROR: The %s failed: internal error.", context)
 	case NotSupported:
-		return errors.New(fmt.Sprintf("ERROR: The ", context, " failed: not supported."))
+		return fmt.Errorf("ERROR: The %s failed: not supported.", context)
 	case PermanentResourceLimitation:
-		return errors.New(fmt.Sprintf("ERROR: The ", context, " failed: permanent resource limitation."))
+		return fmt.Errorf("ERROR: The %s failed: permanent resource limitation.", context)
 	case TemporaryResourceLimitation:
-		return errors.New(fmt.Sprintf("ERROR: The ", context, " failed: temporary resource limitation."))
+		return fmt.Errorf("ERROR: The %s failed: temporary resource limitation.", context)
 	}
 	return nil
 }
