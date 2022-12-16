@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/orn1983/twamp-client"
+	"github.com/tcaine/twamp"
 )
 
 const maxuint64 = ^uint(0)
