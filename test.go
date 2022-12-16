@@ -404,10 +404,11 @@ func (t *TwampTest) printPingReply(twampResults *TwampResults) {
 	if twampResults.IsDuplicate {
 		duplicateNotice = " (DUP!)"
 	}
-	fmt.Printf("%d bytes from %s: twamp_seq=%d ttl=%d time=%0.03f ms%s\n",
+	fmt.Printf("%d bytes from %s: send_seq=%d refl_seq=%d ttl=%d time=%0.03f ms%s\n",
 		packetSize,
 		t.GetRemoteTestHost(),
 		twampResults.SenderSeqNum,
+		twampResults.SeqNum,
 		twampResults.SenderTTL,
 		(float64(twampResults.GetRTT()) / float64(time.Millisecond)),
 		duplicateNotice,
