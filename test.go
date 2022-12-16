@@ -82,6 +82,24 @@ func (t *TwampTest) RemoteAddr() (*net.UDPAddr, error) {
 }
 
 /*
+This can be called to stop the reply reader instantly because we
+have already read everything we want and don't want to block
+further reads until timeout is hit, or read from a new iteration
+utilizing the same session
+*/
+func (t *TwampTest) Reset() error {
+	localAddr := t.GetConnection().LocalAddr()
+	remoteAddr := t.GetConnection().RemoteAddr()
+	t.GetConnection().Close()
+	conn, err := net.DialUDP("udp", localAddr.(*net.UDPAddr), remoteAddr.(*net.UDPAddr))
+	if err != nil {
+		return err
+	}
+	t.SetConnection(conn)
+	return nil
+}
+
+/*
 Get the remote TWAMP UDP port number.
 */
 func (t *TwampTest) GetRemoteTestPort() uint16 {
@@ -134,7 +152,8 @@ func (t *TwampTest) sendTestMessageWithMutex() {
 	t.mutex.Unlock()
 }
 
-func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bool, numTransmitted *uint64, replyChan chan TwampResults) {
+func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bool, numTransmitted *uint64, replyChan chan TwampResults, wg *sync.WaitGroup) {
+	wg.Done()
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -145,11 +164,13 @@ func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bo
 	defer tcpTestTicker.Stop()
 	var ticker *time.Ticker
 	ticker = time.NewTicker(interval)
+	defer ticker.Stop()
 	firstTick := make(chan bool, 1)
 	firstTick <- true
 	tcpError := make(chan error, 1)
 	go func() {
-		t.readReplies(replyChan, done)
+		wg.Add(1)
+		t.readReplies(replyChan, done, wg)
 	}()
 	for continuous || atomic.LoadUint64(numTransmitted) < count {
 		// Wait until we are either done (can be via signal), have a TCP error, or it
@@ -165,7 +186,6 @@ func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bo
 			}()
 		case err := <- tcpError:
 			log.Println(err)
-			close(replyChan)
 			return
 		case <-firstTick:
 			t.sendTestMessageWithMutex()
@@ -177,17 +197,14 @@ func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bo
 			}
 		}
 	}
-	select {
-	case <-time.After(time.Second * time.Duration(t.GetTimeout())):
-	case <-done:
-	}
 	return
 }
 
 /*
 Read replies into a *TwampResults reply channel. Run until done signal
 */
-func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool) {
+func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool, wg *sync.WaitGroup) {
+	defer wg.Done()
 	paddingSize := t.GetSession().config.Padding
 	for {
 		select {
@@ -397,17 +414,12 @@ func (t *TwampTest) printPingReply(twampResults *TwampResults) {
 	)
 }
 
-func (t *TwampTest) Ping(count uint64, interval time.Duration, done <-chan bool) (*PingResults, error) {
-	var totalRTT time.Duration = 0
+func (t *TwampTest) Ping(count uint64, interval time.Duration, done chan bool) (*PingResults, error) {
 	var pingResults *PingResults
 	var err error
 	// Calculate summaries upon returning
 	defer func() {
 		stats := pingResults.Stat
-		stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
-		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
-		stats.StdDev = pingResults.stdDev(stats.Avg)
-
 		duplicates := ""
 		if stats.Duplicates > 0 {
 			duplicates = fmt.Sprintf(" +%d duplicates,", stats.Duplicates)
@@ -545,11 +557,19 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 	// we might flag a response as a duplicate before we have a chance
 	// to handle the previous one in the loop
 	replyChan := make(chan TwampResults, 4096)
-	receivedEverything := false
 
+	receivedEverything := false
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	// Reset the UDP session upon returning so the reading channel will
+	// stop waiting for a timeout and immediately return
+	defer t.Reset()
+	childrenDone := make(chan bool, 1)
+	defer close(childrenDone)
 	// Run a TWAMP test count times, yield results to replyChan
 	go func() {
-		t.runTest(count, interval, done, &stats.Transmitted, replyChan)
+		wg.Add(1)
+		t.runTest(count, interval, childrenDone, &stats.Transmitted, replyChan, &wg)
 	}()
 
 	// Run until done signal or we've received everything/timed out
