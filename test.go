@@ -242,6 +242,7 @@ func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool, wg 
 		r := t.results[responseHeader.Sequence]
 		if r == nil {
 			log.Printf("Received response with sequence %d, but haven't sent request with that sequence ID\n", responseHeader.Sequence)
+			t.mutex.Unlock()
 			continue
 		}
 		if !r.FinishedTimestamp.IsZero() {
