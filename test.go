@@ -152,8 +152,8 @@ func (t *TwampTest) sendTestMessageWithMutex() {
 	t.mutex.Unlock()
 }
 
-func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bool, numTransmitted *uint64, replyChan chan TwampResults, wg *sync.WaitGroup) {
-	wg.Done()
+func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bool, notifyError chan<- error, numTransmitted *uint64, replyChan chan TwampResults, wg *sync.WaitGroup) {
+	defer wg.Done()
 	continuous := false
 	if count == 0 {
 		continuous = true
@@ -185,7 +185,7 @@ func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bo
 				}
 			}()
 		case err := <- tcpError:
-			log.Println(err)
+			notifyError<-err
 			return
 		case <-firstTick:
 			t.sendTestMessageWithMutex()
@@ -565,12 +565,14 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 	// Reset the UDP session upon returning so the reading channel will
 	// stop waiting for a timeout and immediately return
 	defer t.Reset()
-	childrenDone := make(chan bool, 1)
-	defer close(childrenDone)
+	stopChildren := make(chan bool, 1)
+	defer close(stopChildren)
+	childError := make(chan error, 1)
+	defer close(childError)
 	// Run a TWAMP test count times, yield results to replyChan
 	go func() {
 		wg.Add(1)
-		t.runTest(count, interval, childrenDone, &stats.Transmitted, replyChan, &wg)
+		t.runTest(count, interval, stopChildren, childError, &stats.Transmitted, replyChan, &wg)
 	}()
 
 	// Run until done signal or we've received everything/timed out
@@ -578,10 +580,12 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 		select {
 		case <-done:
 			return pingResults, nil
+		case err := <-childError:
+			return pingResults, err
 		case twampResults, ok := <-replyChan:
 			if !ok {
 				// Reply channel has been closed
-				return pingResults, nil
+				return pingResults, fmt.Errorf("problem with reply handling routine")
 			}
 			if !twampResults.IsDuplicate {
 				stats.Received++

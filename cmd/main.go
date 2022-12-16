@@ -16,7 +16,7 @@ const maxuint64 = ^uint(0)
 func main() {
 	intervalFlag := flag.Float64("interval", 1, "Delay between TWAMP-test requests (seconds). For sub-second intervals, use floating points")
 	count := flag.Uint64("count", 5, fmt.Sprintf("Number of requests to send (0..%d packets, 0 being continuous)", maxuint64))
-	rapid := flag.Bool("rapid", false, "Send requests as rapidly as possible (default count of 5, ignores interval and sends next packet as soon as a response or timeout is received)")
+	rapid := flag.Bool("rapid", false, "Send requests as rapidly as possible (default count of 5, ignores interval and sends next packet as soon as we have a response/timeout)")
 	size := flag.Int("size", 42, "Size of request packets (0..65468 bytes)")
 	tos := flag.Int("tos", 0, "IP type-of-service value (0..255)")
 	timeout := flag.Int("timeout", 1, "Maximum wait time for a response for the last packet (seconds). If rapid is set, this is a timeout for every packet")
