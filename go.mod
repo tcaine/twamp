@@ -1,4 +1,4 @@
-module github.com/orn1983/twamp-client
+module github.com/tcaine/twamp
 
 go 1.18
 
