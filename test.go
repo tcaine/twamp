@@ -96,6 +96,9 @@ func (t *TwampTest) Reset() error {
 		return err
 	}
 	t.SetConnection(conn)
+	// Initialize a new results map so GC can get rid of the old one so this test can be
+	// reused as often as necessary without running out of memory
+	t.results = make(map[uint32]*TwampResults)
 	return nil
 }
 
