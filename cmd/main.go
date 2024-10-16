@@ -108,7 +108,7 @@ func main() {
 	select {
 	case <-sig:
 		close(done)
-		<-wrapup   // Wait for test results
+		<-wrapup // Wait for test results
 	case <-wrapup:
 	}
 }

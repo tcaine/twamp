@@ -9,9 +9,9 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"strings"
 	"time"
 	"unsafe"
 )
@@ -30,8 +30,8 @@ type TwampTest struct {
 /*
 Function header called when a test package arrived back.
 Can be used to show some progress
- */
-type TwampTestCallbackFunction func(result *TwampResults);
+*/
+type TwampTestCallbackFunction func(result *TwampResults)
 
 /*
  */
@@ -126,16 +126,16 @@ func (t *TwampTest) GetRemoteTestHost() string {
 }
 
 type MeasurementPacket struct {
-	Sequence uint32
-	Timestamp TwampTimestamp
-	ErrorEstimate uint16
-	MBZ uint16
-	ReceiveTimeStamp TwampTimestamp
-	SenderSequence uint32
-	SenderTimeStamp TwampTimestamp
+	Sequence            uint32
+	Timestamp           TwampTimestamp
+	ErrorEstimate       uint16
+	MBZ                 uint16
+	ReceiveTimeStamp    TwampTimestamp
+	SenderSequence      uint32
+	SenderTimeStamp     TwampTimestamp
 	SenderErrorEstimate uint16
-	Mbz uint16
-	SenderTtl byte
+	Mbz                 uint16
+	SenderTtl           byte
 	//Padding []byte
 }
 
@@ -191,8 +191,8 @@ func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bo
 					tcpError <- err
 				}
 			}()
-		case err := <- tcpError:
-			notifyError<-err
+		case err := <-tcpError:
+			notifyError <- err
 			return
 		case <-firstTick:
 			if err := t.sendTestMessageWithMutex(); err != nil {
@@ -390,7 +390,7 @@ func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time, error)
 
 	headerBytes := binaryBuffer.Bytes()
 	headerSize := binaryBuffer.Len()
-	totalSize := headerSize+paddingSize
+	totalSize := headerSize + paddingSize
 	var pdu []byte = make([]byte, totalSize)
 	copy(pdu[0:], headerBytes)
 	copy(pdu[headerSize:], padding)
@@ -524,7 +524,7 @@ func (t *TwampTest) PingRapid(count uint64, done <-chan bool) (*PingResults, err
 				}
 			}()
 			continue
-		case err := <- tcpError:
+		case err := <-tcpError:
 			return pingResults, err
 		default:
 		}
