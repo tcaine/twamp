@@ -35,21 +35,22 @@ type TwampTestCallbackFunction func(result *TwampResults);
 
 /*
  */
-func (t *TwampTest) SetConnection(conn *net.UDPConn) {
+func (t *TwampTest) SetConnection(conn *net.UDPConn) error {
 	c := ipv4.NewConn(conn)
 
 	// RFC recommends IP TTL of 255
 	err := c.SetTTL(255)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("setting TTL: %w", err)
 	}
 
 	err = c.SetTOS(t.GetSession().GetConfig().TOS)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("setting TOS: %w", err)
 	}
 
 	t.conn = conn
+	return nil
 }
 
 /*
@@ -95,7 +96,9 @@ func (t *TwampTest) Reset() error {
 	if err != nil {
 		return err
 	}
-	t.SetConnection(conn)
+	if err := t.SetConnection(conn); err != nil {
+		return err
+	}
 	return nil
 }
 

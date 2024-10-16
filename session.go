@@ -96,7 +96,9 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 		return nil, err
 	}
 
-	test.SetConnection(conn)
+	if err := test.SetConnection(conn); err != nil {
+		return nil, err
+	}
 
 	return test, nil
 }
