@@ -2,6 +2,7 @@ package twamp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -13,8 +14,6 @@ import (
 const (
 	ModeUnspecified     = 0
 	ModeUnauthenticated = 1
-	ModeAuthenticated   = 2
-	ModeEncypted        = 4
 )
 
 type TwampClient struct{}
@@ -39,15 +38,12 @@ func (c *TwampClient) Connect(hostname string) (*TwampConnection, error) {
 		return nil, err
 	}
 
-	// check greeting mode for errors
-	switch greeting.Mode {
-	case ModeUnspecified:
+	if greeting.Mode == ModeUnspecified {
 		return nil, fmt.Errorf("The TWAMP server is not interested in communicating with you.")
-	case ModeUnauthenticated:
-	case ModeAuthenticated:
-		return nil, fmt.Errorf("Authentication is not currently supported.")
-	case ModeEncypted:
-		return nil, fmt.Errorf("Encyption is not currently supported.")
+	}
+
+	if greeting.Mode&ModeUnauthenticated == 0 {
+		return nil, errors.New("only unauthenticated mode is currently supported")
 	}
 
 	// negotiate TWAMP session configuration
