@@ -568,12 +568,15 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 	// Calculate totals upon returning
 	defer func() {
 		t.mutex.RLock()
-		stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
+		if stats.Transmitted > 0 {
+			stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
+		}
 		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
-		stats.StdDev = pingResults.stdDev(stats.Avg)
+		if len(pingResults.Results) > 1 {
+			stats.StdDev = pingResults.stdDev(stats.Avg)
+		}
 		t.mutex.RUnlock()
 	}()
-
 
 	// We must use a struct chan instead of a struct pointer chan to
 	// make sure that we have a snapshot of the reply received, in case
