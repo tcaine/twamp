@@ -7,7 +7,7 @@ import (
 )
 
 /*
-	TWAMP test result timestamps have been normalized to UNIX epoch time.
+TWAMP test result timestamps have been normalized to UNIX epoch time.
 */
 type TwampResults struct {
 	SeqNum              uint32    `json:"seqnum"`

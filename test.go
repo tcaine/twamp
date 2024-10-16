@@ -9,9 +9,9 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"strings"
 	"time"
 	"unsafe"
 )
@@ -30,8 +30,8 @@ type TwampTest struct {
 /*
 Function header called when a test package arrived back.
 Can be used to show some progress
- */
-type TwampTestCallbackFunction func(result *TwampResults);
+*/
+type TwampTestCallbackFunction func(result *TwampResults)
 
 /*
  */
@@ -123,16 +123,16 @@ func (t *TwampTest) GetRemoteTestHost() string {
 }
 
 type MeasurementPacket struct {
-	Sequence uint32
-	Timestamp TwampTimestamp
-	ErrorEstimate uint16
-	MBZ uint16
-	ReceiveTimeStamp TwampTimestamp
-	SenderSequence uint32
-	SenderTimeStamp TwampTimestamp
+	Sequence            uint32
+	Timestamp           TwampTimestamp
+	ErrorEstimate       uint16
+	MBZ                 uint16
+	ReceiveTimeStamp    TwampTimestamp
+	SenderSequence      uint32
+	SenderTimeStamp     TwampTimestamp
 	SenderErrorEstimate uint16
-	Mbz uint16
-	SenderTtl byte
+	Mbz                 uint16
+	SenderTtl           byte
 	//Padding []byte
 }
 
@@ -184,8 +184,8 @@ func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bo
 					tcpError <- err
 				}
 			}()
-		case err := <- tcpError:
-			notifyError<-err
+		case err := <-tcpError:
+			notifyError <- err
 			return
 		case <-firstTick:
 			t.sendTestMessageWithMutex()
@@ -374,7 +374,7 @@ func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time) {
 
 	headerBytes := binaryBuffer.Bytes()
 	headerSize := binaryBuffer.Len()
-	totalSize := headerSize+paddingSize
+	totalSize := headerSize + paddingSize
 	var pdu []byte = make([]byte, totalSize)
 	copy(pdu[0:], headerBytes)
 	copy(pdu[headerSize:], padding)
@@ -500,7 +500,7 @@ func (t *TwampTest) PingRapid(count uint64, done <-chan bool) (*PingResults, err
 				}
 			}()
 			continue
-		case err := <- tcpError:
+		case err := <-tcpError:
 			return pingResults, err
 		default:
 		}
@@ -549,7 +549,6 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 		stats.StdDev = pingResults.stdDev(stats.Avg)
 		t.mutex.RUnlock()
 	}()
-
 
 	// We must use a struct chan instead of a struct pointer chan to
 	// make sure that we have a snapshot of the reply received, in case

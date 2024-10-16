@@ -8,7 +8,7 @@ import (
 )
 
 /*
-	Security modes for TWAMP session.
+Security modes for TWAMP session.
 */
 const (
 	ModeUnspecified     = 0
@@ -82,7 +82,7 @@ func readFromSocket(conn net.Conn, size int, timeoutSeconds int) (bytes.Buffer, 
 }
 
 /*
-	TWAMP Accept Field Status Code
+TWAMP Accept Field Status Code
 */
 const (
 	OK                          = 0
@@ -94,8 +94,8 @@ const (
 )
 
 /*
-	Convenience function for checking the accept code contained in various TWAMP server
-	response messages.
+Convenience function for checking the accept code contained in various TWAMP server
+response messages.
 */
 func checkAcceptStatus(accept int, context string) error {
 	switch accept {
