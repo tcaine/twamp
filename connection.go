@@ -141,6 +141,11 @@ type TwampSessionConfig struct {
 	// after it is sent.
 	Timeout int
 	TOS     int
+	// According to RFC 5357, the padding should be pseudo-random and generated
+	// independently of other pseudo-random numbers by default, and
+	// implementations must provide a way of making the padding consist of all
+	// zeros.
+	ZeroPad bool
 }
 
 func (c *TwampConnection) getTwampServerStartMessage() (*TwampServerStart, error) {
