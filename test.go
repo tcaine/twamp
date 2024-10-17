@@ -10,9 +10,9 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
-	"strings"
 	"time"
 	"unsafe"
 )
@@ -31,26 +31,27 @@ type TwampTest struct {
 /*
 Function header called when a test package arrived back.
 Can be used to show some progress
- */
-type TwampTestCallbackFunction func(result *TwampResults);
+*/
+type TwampTestCallbackFunction func(result *TwampResults)
 
 /*
  */
-func (t *TwampTest) SetConnection(conn *net.UDPConn) {
+func (t *TwampTest) SetConnection(conn *net.UDPConn) error {
 	c := ipv4.NewConn(conn)
 
 	// RFC recommends IP TTL of 255
 	err := c.SetTTL(255)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("setting TTL: %w", err)
 	}
 
 	err = c.SetTOS(t.GetSession().GetConfig().TOS)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("setting TOS: %w", err)
 	}
 
 	t.conn = conn
+	return nil
 }
 
 /*
@@ -96,7 +97,9 @@ func (t *TwampTest) Reset() error {
 	if err != nil {
 		return err
 	}
-	t.SetConnection(conn)
+	if err := t.SetConnection(conn); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -124,20 +127,20 @@ func (t *TwampTest) GetRemoteTestHost() string {
 }
 
 type MeasurementPacket struct {
-	Sequence uint32
-	Timestamp TwampTimestamp
-	ErrorEstimate uint16
-	MBZ uint16
-	ReceiveTimeStamp TwampTimestamp
-	SenderSequence uint32
-	SenderTimeStamp TwampTimestamp
+	Sequence            uint32
+	Timestamp           TwampTimestamp
+	ErrorEstimate       uint16
+	MBZ                 uint16
+	ReceiveTimeStamp    TwampTimestamp
+	SenderSequence      uint32
+	SenderTimeStamp     TwampTimestamp
 	SenderErrorEstimate uint16
-	Mbz uint16
-	SenderTtl byte
+	Mbz                 uint16
+	SenderTtl           byte
 	//Padding []byte
 }
 
-func (t *TwampTest) sendTestMessageWithMutex() {
+func (t *TwampTest) sendTestMessageWithMutex() error {
 	paddingSize := t.GetSession().config.Padding
 	t.mutex.Lock()
 	r := &TwampResults{
@@ -145,12 +148,16 @@ func (t *TwampTest) sendTestMessageWithMutex() {
 		SenderPaddingSize: paddingSize,
 	}
 	t.results[t.seq] = r
-	size, ttl, timestamp := t.putMessageOnWire(true)
+	size, ttl, timestamp, err := t.putMessageOnWire(true)
+	if err != nil {
+		return err
+	}
 	r.SenderSize = size
 	r.SenderTTL = byte(ttl)
 	r.SenderTimestamp = timestamp
 	t.seq++
 	t.mutex.Unlock()
+	return nil
 }
 
 func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bool, notifyError chan<- error, numTransmitted *uint64, replyChan chan TwampResults, wg *sync.WaitGroup) {
@@ -185,15 +192,21 @@ func (t *TwampTest) runTest(count uint64, interval time.Duration, done <-chan bo
 					tcpError <- err
 				}
 			}()
-		case err := <- tcpError:
-			notifyError<-err
+		case err := <-tcpError:
+			notifyError <- err
 			return
 		case <-firstTick:
-			t.sendTestMessageWithMutex()
+			if err := t.sendTestMessageWithMutex(); err != nil {
+				notifyError <- err
+				return
+			}
 			atomic.AddUint64(numTransmitted, 1)
 		case <-ticker.C:
 			if continuous || atomic.LoadUint64(numTransmitted) < count {
-				t.sendTestMessageWithMutex()
+				if err := t.sendTestMessageWithMutex(); err != nil {
+					notifyError <- err
+					return
+				}
 				atomic.AddUint64(numTransmitted, 1)
 			}
 		}
@@ -314,7 +327,10 @@ Run a single TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	senderSeqNum := t.seq
-	size, _, _ := t.putMessageOnWire(true)
+	size, _, _, err := t.putMessageOnWire(true)
+	if err != nil {
+		return nil, err
+	}
 	t.seq++
 	r, err := t.readReply(size)
 	if err != nil {
@@ -335,7 +351,7 @@ func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	return r, nil
 }
 
-func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time) {
+func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time, error) {
 	timestamp := time.Now()
 	ttl := byte(87)
 	packetHeader := MeasurementPacket{
@@ -378,18 +394,26 @@ func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time) {
 	var binaryBuffer bytes.Buffer
 	err := binary.Write(&binaryBuffer, binary.BigEndian, packetHeader)
 	if err != nil {
-		log.Fatalf("Failed to serialize measurement package. %v", err)
+		return 0, 0, time.Time{}, fmt.Errorf("serializing measurement packet: %w", err)
 	}
 
 	headerBytes := binaryBuffer.Bytes()
 	headerSize := binaryBuffer.Len()
-	totalSize := headerSize+paddingSize
+	totalSize := headerSize + paddingSize
 	var pdu []byte = make([]byte, totalSize)
 	copy(pdu[0:], headerBytes)
 	copy(pdu[headerSize:], padding)
 
-	t.GetConnection().Write(pdu)
-	return totalSize, ttl, timestamp
+	n, err := t.GetConnection().Write(pdu)
+	if err != nil {
+		return 0, 0, time.Time{}, fmt.Errorf("writing packet: %w", err)
+	}
+
+	if n < len(pdu) {
+		return 0, 0, time.Time{}, fmt.Errorf("wrote %d bytes, but packet is %d bytes long", n, len(pdu))
+	}
+
+	return totalSize, ttl, timestamp, nil
 }
 
 func (t *TwampTest) FormatJSON(r *PingResults) {
@@ -509,7 +533,7 @@ func (t *TwampTest) PingRapid(count uint64, done <-chan bool) (*PingResults, err
 				}
 			}()
 			continue
-		case err := <- tcpError:
+		case err := <-tcpError:
 			return pingResults, err
 		default:
 		}
@@ -553,12 +577,15 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 	// Calculate totals upon returning
 	defer func() {
 		t.mutex.RLock()
-		stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
+		if stats.Transmitted > 0 {
+			stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
+		}
 		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
-		stats.StdDev = pingResults.stdDev(stats.Avg)
+		if len(pingResults.Results) > 1 {
+			stats.StdDev = pingResults.stdDev(stats.Avg)
+		}
 		t.mutex.RUnlock()
 	}()
-
 
 	// We must use a struct chan instead of a struct pointer chan to
 	// make sure that we have a snapshot of the reply received, in case

@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type TwampConnectionError struct{
+type TwampConnectionError struct {
 	origErr error
 }
 
@@ -168,7 +168,7 @@ func (c *TwampConnection) getTwampServerStartMessage() (*TwampServerStart, error
 }
 
 /* Byte offsets for Request-TW-Session TWAMP PDU */
-const (	// TODO these constants should be removed as part of a refactor when control changel messages are refactored to use "struct based" messaging which is clearer
+const ( // TODO these constants should be removed as part of a refactor when control changel messages are refactored to use "struct based" messaging which is clearer
 	offsetRequestTwampSessionCommand         = 0
 	offsetRequestTwampSessionIpVersion       = 1
 	offsetRequestTwampSessionSenderPort      = 12

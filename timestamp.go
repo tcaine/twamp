@@ -13,7 +13,7 @@ type TwampTimestamp struct {
 const epochOffset = time.Duration(0x83aa7e80 * time.Second)
 
 /*
-	Converts a UNIX epoch time time.Time object into an RFC 1305 compliant time.
+Converts a UNIX epoch time time.Time object into an RFC 1305 compliant time.
 */
 func NewTwampTimestamp(t time.Time) *TwampTimestamp {
 	// convert epoch from 1970 to 1900 per RFC 1305
@@ -32,7 +32,7 @@ func NewTimestamp(twampTimestamp TwampTimestamp) time.Time {
 }
 
 /*
-	Return a time.Time object representing Unix Epoch time since January 1st, 1970.
+Return a time.Time object representing Unix Epoch time since January 1st, 1970.
 */
 func (t *TwampTimestamp) GetTime() time.Time {
 	// convert epoch from 1900 back to 1970
