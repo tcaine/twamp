@@ -91,7 +91,9 @@ utilizing the same session
 func (t *TwampTest) Reset() error {
 	localAddr := t.GetConnection().LocalAddr()
 	remoteAddr := t.GetConnection().RemoteAddr()
-	t.GetConnection().Close()
+	if err := t.GetConnection().Close(); err != nil {
+		return err
+	}
 	conn, err := net.DialUDP("udp", localAddr.(*net.UDPAddr), remoteAddr.(*net.UDPAddr))
 	if err != nil {
 		return err
@@ -140,8 +142,9 @@ type MeasurementPacket struct {
 }
 
 func (t *TwampTest) sendTestMessageWithMutex() error {
-	paddingSize := t.GetSession().config.Padding
 	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	paddingSize := t.GetSession().config.Padding
 	r := &TwampResults{
 		SenderSeqNum:      t.seq,
 		SenderPaddingSize: paddingSize,
@@ -155,7 +158,6 @@ func (t *TwampTest) sendTestMessageWithMutex() error {
 	r.SenderTTL = byte(ttl)
 	r.SenderTimestamp = timestamp
 	t.seq++
-	t.mutex.Unlock()
 	return nil
 }
 
@@ -350,7 +352,7 @@ func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	return r, nil
 }
 
-func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time, error) {
+func (t *TwampTest) putMessageOnWire() (int, byte, time.Time, error) {
 	timestamp := time.Now()
 	ttl := byte(87)
 	packetHeader := MeasurementPacket{
@@ -565,8 +567,8 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 		t.mutex.RLock()
 		if stats.Transmitted > 0 {
 			stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
+			stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		}
-		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		if len(pingResults.Results) > 1 {
 			stats.StdDev = pingResults.stdDev(stats.Avg)
 		}
