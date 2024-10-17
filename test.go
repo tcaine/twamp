@@ -2,7 +2,7 @@ package twamp
 
 import (
 	"bytes"
-	cRand "crypto/rand"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -374,7 +374,7 @@ func (t *TwampTest) putMessageOnWire() (int, byte, time.Time, error) {
 	// Note that Go initializes variables with zero-values, which in the case
 	// of a []byte happens to be a slice filled with zeros.
 	if !t.GetSession().GetConfig().ZeroPad {
-		if _, err := cRand.Read(padding); err != nil {
+		if _, err := rand.Read(padding); err != nil {
 			return 0, 0, time.Time{}, fmt.Errorf("generating random padding: %w", err)
 		}
 	}
