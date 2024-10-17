@@ -383,7 +383,7 @@ func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time, error)
 	// of a []byte happens to be a slice filled with zeros.
 	if !t.GetSession().GetConfig().ZeroPad {
 		if _, err := cRand.Read(padding); err != nil {
-			log.Fatalf("generating random padding: %s", err)
+			return 0, 0, time.Time{}, fmt.Errorf("generating random padding: %w", err)
 		}
 	}
 
