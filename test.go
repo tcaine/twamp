@@ -150,7 +150,7 @@ func (t *TwampTest) sendTestMessageWithMutex() error {
 		SenderPaddingSize: paddingSize,
 	}
 	t.results[t.seq] = r
-	size, ttl, timestamp, err := t.putMessageOnWire(true)
+	size, ttl, timestamp, err := t.putMessageOnWire()
 	if err != nil {
 		return err
 	}
@@ -328,7 +328,7 @@ Run a single TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	senderSeqNum := t.seq
-	size, _, _, err := t.putMessageOnWire(true)
+	size, _, _, err := t.putMessageOnWire()
 	if err != nil {
 		return nil, err
 	}
