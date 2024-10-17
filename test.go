@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"golang.org/x/net/ipv4"
 	"log"
-	"math/rand"
 	"net"
 	"strings"
 	"sync"
