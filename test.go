@@ -33,8 +33,10 @@ Can be used to show some progress
 */
 type TwampTestCallbackFunction func(result *TwampResults)
 
-/*
- */
+func (t *TwampTest) CloseUDP() error {
+	return t.conn.Close()
+}
+
 func (t *TwampTest) SetConnection(conn *net.UDPConn) error {
 	c := ipv4.NewConn(conn)
 
