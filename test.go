@@ -2,7 +2,7 @@ package twamp
 
 import (
 	"bytes"
-	cRand "crypto/rand"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -91,7 +91,9 @@ utilizing the same session
 func (t *TwampTest) Reset() error {
 	localAddr := t.GetConnection().LocalAddr()
 	remoteAddr := t.GetConnection().RemoteAddr()
-	t.GetConnection().Close()
+	if err := t.GetConnection().Close(); err != nil {
+		return err
+	}
 	conn, err := net.DialUDP("udp", localAddr.(*net.UDPAddr), remoteAddr.(*net.UDPAddr))
 	if err != nil {
 		return err
@@ -140,14 +142,15 @@ type MeasurementPacket struct {
 }
 
 func (t *TwampTest) sendTestMessageWithMutex() error {
-	paddingSize := t.GetSession().config.Padding
 	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	paddingSize := t.GetSession().config.Padding
 	r := &TwampResults{
 		SenderSeqNum:      t.seq,
 		SenderPaddingSize: paddingSize,
 	}
 	t.results[t.seq] = r
-	size, ttl, timestamp, err := t.putMessageOnWire(true)
+	size, ttl, timestamp, err := t.putMessageOnWire()
 	if err != nil {
 		return err
 	}
@@ -155,7 +158,6 @@ func (t *TwampTest) sendTestMessageWithMutex() error {
 	r.SenderTTL = byte(ttl)
 	r.SenderTimestamp = timestamp
 	t.seq++
-	t.mutex.Unlock()
 	return nil
 }
 
@@ -326,7 +328,7 @@ Run a single TWAMP test and return a pointer to the TwampResults.
 */
 func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	senderSeqNum := t.seq
-	size, _, _, err := t.putMessageOnWire(true)
+	size, _, _, err := t.putMessageOnWire()
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +352,7 @@ func (t *TwampTest) RunSingle() (*TwampResults, error) {
 	return r, nil
 }
 
-func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time, error) {
+func (t *TwampTest) putMessageOnWire() (int, byte, time.Time, error) {
 	timestamp := time.Now()
 	ttl := byte(87)
 	packetHeader := MeasurementPacket{
@@ -372,7 +374,7 @@ func (t *TwampTest) putMessageOnWire(padZero bool) (int, byte, time.Time, error)
 	// Note that Go initializes variables with zero-values, which in the case
 	// of a []byte happens to be a slice filled with zeros.
 	if !t.GetSession().GetConfig().ZeroPad {
-		if _, err := cRand.Read(padding); err != nil {
+		if _, err := rand.Read(padding); err != nil {
 			return 0, 0, time.Time{}, fmt.Errorf("generating random padding: %w", err)
 		}
 	}
@@ -565,8 +567,8 @@ func (t *TwampTest) RunMultiple(count uint64, callback TwampTestCallbackFunction
 		t.mutex.RLock()
 		if stats.Transmitted > 0 {
 			stats.Avg = time.Duration(uint64(totalRTT) / stats.Transmitted)
+			stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		}
-		stats.Loss = float64(float64(stats.Transmitted-stats.Received)/float64(stats.Transmitted)) * 100.0
 		if len(pingResults.Results) > 1 {
 			stats.StdDev = pingResults.stdDev(stats.Avg)
 		}
