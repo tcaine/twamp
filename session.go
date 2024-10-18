@@ -103,11 +103,20 @@ func (s *TwampSession) CreateTest() (*TwampTest, error) {
 	return test, nil
 }
 
-func (s *TwampSession) Stop() {
+func (s *TwampSession) Stop() error {
 	//	log.Println("Stopping test sessions.")
 	var pdu []byte = make([]byte, 32)
 	pdu[0] = byte(3)                       // Stop-Sessions Command Number
 	pdu[1] = byte(0)                       // Accept Status (0 = OK)
 	binary.BigEndian.PutUint16(pdu[4:], 1) // Number of Sessions
-	s.GetConnection().Write(pdu)
+	n, err := s.GetConnection().Write(pdu)
+	if err != nil {
+		return fmt.Errorf("stopping session: %w", err)
+	}
+
+	if n != len(pdu) {
+		return fmt.Errorf("stopping session: wrote %d bytes, expecting to write %d", n, len(pdu))
+	}
+
+	return nil
 }

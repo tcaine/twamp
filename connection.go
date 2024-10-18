@@ -58,8 +58,8 @@ func (c *TwampConnection) GetConnection() net.Conn {
 	return c.conn
 }
 
-func (c *TwampConnection) Close() {
-	c.GetConnection().Close()
+func (c *TwampConnection) Close() error {
+	return c.GetConnection().Close()
 }
 
 func (c *TwampConnection) LocalAddr() net.Addr {

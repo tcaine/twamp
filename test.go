@@ -229,6 +229,7 @@ func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool, wg 
 		}
 		buffer, err := readFromSocket(t.GetConnection(), (int(unsafe.Sizeof(MeasurementPacket{}))+paddingSize)*2, t.GetTimeout())
 		if err != nil {
+			log.Printf("reading reply: %s", err)
 			continue
 		}
 
@@ -238,6 +239,7 @@ func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool, wg 
 		err = binary.Read(&buffer, binary.BigEndian, &responseHeader)
 		if err != nil {
 			log.Printf("Failed to deserialize measurement package. %v", err)
+			continue
 		}
 
 		responsePadding := make([]byte, paddingSize, paddingSize)
