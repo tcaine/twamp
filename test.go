@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"golang.org/x/net/ipv4"
 	"log"
 	"net"
 	"strings"
@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 	"unsafe"
+
+	"golang.org/x/net/ipv4"
 )
 
 /*
@@ -129,6 +131,9 @@ func (t *TwampTest) GetRemoteTestHost() string {
 	return strings.Split(remoteAddress.String(), ":")[0]
 }
 
+// Size, in bytes, of all the fields in MeasurementPacket
+const basePacketSize = 41
+
 type MeasurementPacket struct {
 	Sequence            uint32
 	Timestamp           TwampTimestamp
@@ -223,14 +228,18 @@ Read replies into a *TwampResults reply channel. Run until done signal
 func (t *TwampTest) readReplies(results chan TwampResults, done <-chan bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 	paddingSize := t.GetSession().config.Padding
+	packetSize := basePacketSize + paddingSize
 	for {
 		select {
 		case <-done:
 			return
 		default:
 		}
-		buffer, err := readFromSocket(t.GetConnection(), (int(unsafe.Sizeof(MeasurementPacket{}))+paddingSize)*2, t.GetTimeout())
+		buffer, err := readFromSocket(t.GetConnection(), packetSize, t.GetTimeout())
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				break
+			}
 			log.Printf("reading reply: %s", err)
 			continue
 		}
@@ -288,8 +297,9 @@ Read a single reply and return it as a *TwampResults
 */
 func (t *TwampTest) readReply(size int) (*TwampResults, error) {
 	paddingSize := t.GetSession().config.Padding
+	packetSize := basePacketSize + paddingSize
 	// receive test packets - allocate a receive buffer of a size we expect to receive plus a bit to know if we get some garbage
-	buffer, err := readFromSocket(t.GetConnection(), (int(unsafe.Sizeof(MeasurementPacket{}))+paddingSize)*2, t.GetTimeout())
+	buffer, err := readFromSocket(t.GetConnection(), packetSize, t.GetTimeout())
 	if err != nil {
 		return nil, err
 	}

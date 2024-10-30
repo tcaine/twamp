@@ -70,7 +70,11 @@ func readFromSocket(conn net.Conn, size int, timeoutSeconds int) (bytes.Buffer, 
 	conn.SetReadDeadline(timeout)
 	bytesRead, err := conn.Read(buf)
 
-	if err != nil && bytesRead < size {
+	if err != nil {
+		return buffer, err
+	}
+
+	if bytesRead < size {
 		return buffer, fmt.Errorf(fmt.Sprintf("readFromSocket: expected %d bytes, got %d", size, bytesRead))
 	}
 
